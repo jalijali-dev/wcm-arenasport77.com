@@ -1,0 +1,182 @@
+/* ==========================================================================
+   Biang Olahraga — public frontend stylesheet
+   Implements the approved mockup V2 (homepage-mockup-v2.html): dark/ink
+   base theme, header with menu-left/search-right (diagonal divider),
+   sticky vertical category rail, asymmetric bento hero, horizontal
+   filmstrip article lists, tips list + popular panel bottom section.
+   ========================================================================== */
+
+:root{
+  --ink:#0e1116;
+  --accent:#ff3b30;   /* c1 — Bulu Tangkis */
+  --accent2:#00c2a8;  /* c2 — Tinju */
+  --gold:#ffb703;     /* c3 — Moto GP */
+  --violet:#7c5cff;   /* c4 — Tips */
+  --bg:#f2f1ec;
+  --card:#ffffff;
+  --text:#14161a;
+  --muted:#6b7280;
+  --border:#e6e4dc;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;background:var(--bg);color:var(--text);}
+a{text-decoration:none;color:inherit;}
+img{max-width:100%;display:block;}
+.wpm-wrap{max-width:1240px;margin:0 auto;padding:0 20px;}
+
+/* ── Ticker ── */
+.wpm-ticker{background:var(--ink);color:#fff;overflow:hidden;white-space:nowrap;font-size:12px;padding:7px 0;border-bottom:2px solid var(--accent);}
+.wpm-ticker__track{display:inline-flex;gap:36px;padding-left:100%;animation:wpm-scroll 32s linear infinite;}
+.wpm-ticker__track a{color:#fff;opacity:.9;}
+.wpm-ticker__track b{color:var(--gold);}
+@keyframes wpm-scroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+/* ── Header ── */
+.wpm-header{background:#000;padding:0;}
+.wpm-header__bar{display:flex;justify-content:space-between;align-items:stretch;height:64px;}
+.wpm-header__nav-left{display:flex;align-items:center;gap:28px;padding-left:8px;overflow-x:auto;}
+.wpm-header__nav-left a{font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.5px;color:#fff;white-space:nowrap;}
+.wpm-header__nav-left a:hover,
+.wpm-header__nav-left a.is-active{color:var(--accent);}
+.wpm-header__nav-left a.wpm-brand{font-size:19px;font-weight:900;letter-spacing:-.3px;padding-right:12px;margin-right:2px;border-right:1px solid #333;color:#fff;}
+.wpm-brand__accent{color:var(--accent);}
+
+.wpm-header__search-wrap{display:flex;align-items:center;height:100%;padding-right:26px;padding-left:22px;flex-shrink:0;border-left:1px solid #262626;}
+.wpm-header__search{position:relative;display:flex;align-items:center;gap:10px;color:#fff;font-size:14px;font-weight:600;}
+.wpm-header__search input{background:transparent;border:none;color:#fff;font-size:14px;font-weight:600;outline:none;width:110px;}
+.wpm-header__search input::placeholder{color:#c9c9c9;}
+.wpm-header__search-icon{display:block;flex-shrink:0;color:#c9c9c9;}
+
+/* ── Page body: sticky vertical category rail + content ── */
+.wpm-page{display:grid;grid-template-columns:64px 1fr;gap:0;}
+.wpm-rail{background:var(--ink);display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:22px;position:sticky;top:0;align-self:start;height:100vh;}
+.wpm-rail a{writing-mode:vertical-rl;text-orientation:mixed;color:#8b95a5;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;padding:10px 0;border-left:3px solid transparent;}
+.wpm-rail__c1{color:var(--accent);}
+.wpm-rail__c1.is-active,.wpm-rail a.wpm-rail__c1.is-active{border-left-color:var(--accent);}
+.wpm-rail__c2{color:var(--accent2);}
+.wpm-rail__c2.is-active{border-left-color:var(--accent2);}
+.wpm-rail__c3{color:var(--gold);}
+.wpm-rail__c3.is-active{border-left-color:var(--gold);}
+.wpm-rail__c4{color:var(--violet);}
+.wpm-rail__c4.is-active{border-left-color:var(--violet);}
+.wpm-rail__dot{width:8px;height:8px;border-radius:50%;background:#333;}
+
+.wpm-content{padding:24px 0 40px;}
+
+/* ── Bento hero ──
+   Flex-based, not a fixed grid: the layout adapts to however many
+   category headlines actually exist (1-4), instead of always reserving
+   5 fixed cells. With only 1 headline, .wpm-bento__side isn't rendered
+   at all and the main item takes the full width — no leftover empty
+   white space like the fixed 6-col/2-row grid used to leave (flagged by
+   operator 13 Agu 2026: 3 empty cells showed as blank white boxes
+   whenever fewer than 4 categories had articles yet). */
+.wpm-bento{display:flex;gap:12px;margin-bottom:36px;height:420px;}
+.wpm-bento__main{flex:1.6;min-width:0;}
+.wpm-bento__side{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;height:100%;}
+.wpm-bento__side .wpm-bento__item{flex:1;min-height:0;}
+
+.wpm-bento__item{position:relative;border-radius:6px;overflow:hidden;background:#ccc;display:block;height:100%;}
+.wpm-bento__item img{width:100%;height:100%;object-fit:cover;}
+.wpm-bento__tag{position:absolute;top:10px;left:10px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;padding:3px 9px;text-transform:uppercase;letter-spacing:.5px;}
+.wpm-bento__item.c2 .wpm-bento__tag{background:var(--accent2);}
+.wpm-bento__item.c3 .wpm-bento__tag{background:var(--gold);color:var(--ink);}
+.wpm-bento__item.c4 .wpm-bento__tag{background:var(--violet);}
+.wpm-bento__cap{position:absolute;left:0;right:0;bottom:0;padding:14px;background:linear-gradient(transparent,rgba(0,0,0,.9));color:#fff;display:flex;flex-direction:column;gap:5px;}
+.wpm-bento__title{font-size:15px;font-weight:800;line-height:1.25;}
+.wpm-bento__meta{font-size:10px;color:#d1d5db;}
+.wpm-bento__main .wpm-bento__title{font-size:22px;}
+
+.wpm-empty-state{text-align:center;padding:60px 20px;color:var(--muted);background:var(--card);border-radius:8px;margin-bottom:36px;}
+.wpm-empty-state__icon{font-size:36px;display:block;margin-bottom:10px;}
+.wpm-empty-state h2{font-size:16px;color:var(--text);margin-bottom:6px;}
+
+/* ── Section headers (diagonal chip) ── */
+.wpm-sec-head{display:flex;align-items:center;justify-content:space-between;margin:34px 0 16px;}
+.wpm-chip{background:var(--ink);color:#fff;font-size:13px;font-weight:900;text-transform:uppercase;letter-spacing:1px;padding:8px 16px;clip-path:polygon(0 0,100% 0,92% 100%,0% 100%);}
+.wpm-sec-head.c1 .wpm-chip{background:var(--accent);}
+.wpm-sec-head.c2 .wpm-chip{background:var(--accent2);}
+.wpm-sec-head.c3 .wpm-chip{background:var(--gold);color:var(--ink);}
+.wpm-sec-head.c4 .wpm-chip{background:var(--violet);}
+.wpm-more{font-size:12px;font-weight:700;color:var(--muted);}
+
+/* ── Filmstrip ── */
+.wpm-filmstrip{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;}
+.wpm-film-card{flex:0 0 240px;background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.wpm-film-card img{height:135px;width:100%;object-fit:cover;background:#ccc;}
+.wpm-film-card__body{display:block;padding:12px;}
+.wpm-film-card__title{display:block;font-size:13px;font-weight:800;line-height:1.3;margin-bottom:6px;}
+.wpm-film-card__meta{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+
+/* ── Bottom: Tips list + Popular panel ── */
+.wpm-bottom-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-top:36px;}
+.wpm-tips-list{display:flex;flex-direction:column;gap:12px;}
+.wpm-tips-item{display:grid;grid-template-columns:130px 1fr;gap:14px;background:var(--card);border-radius:6px;overflow:hidden;border:1px solid var(--border);}
+.wpm-tips-item img{height:90px;width:100%;object-fit:cover;background:#ccc;}
+.wpm-tips-item__body{padding:10px 12px 10px 0;display:flex;flex-direction:column;justify-content:center;gap:5px;}
+.wpm-tips-item__title{font-size:13px;font-weight:800;}
+.wpm-tips-item__meta{font-size:10px;color:var(--muted);}
+
+.wpm-popular-panel{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:16px;align-self:start;}
+.wpm-popular-panel h5{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;color:var(--accent);}
+.wpm-p-row{display:flex;gap:10px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--border);}
+.wpm-p-row:last-child{border-bottom:none;}
+.wpm-p-row__rank{font-size:24px;font-weight:900;color:var(--bg);-webkit-text-stroke:1.5px var(--ink);width:28px;flex-shrink:0;}
+.wpm-p-row__title{font-size:12px;font-weight:700;line-height:1.3;}
+.wpm-sidebar-empty{color:var(--muted);font-size:13px;padding:8px 0;}
+
+/* ── Category / search listing ── */
+.wpm-breadcrumb{font-size:12px;color:var(--muted);margin-bottom:14px;}
+.wpm-breadcrumb a{color:var(--muted);}
+.wpm-page-title{font-size:20px;font-weight:800;margin-bottom:20px;}
+.wpm-listing-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-top:16px;}
+.wpm-listing-main{display:flex;flex-direction:column;gap:12px;}
+.wpm-list-card{display:grid;grid-template-columns:150px 1fr;gap:14px;background:var(--card);border-radius:6px;overflow:hidden;border:1px solid var(--border);}
+.wpm-list-card img{height:100px;width:100%;object-fit:cover;background:#ccc;}
+.wpm-list-card__body{padding:10px 12px 10px 0;display:flex;flex-direction:column;justify-content:center;gap:4px;}
+.wpm-list-card__title{font-size:14px;font-weight:800;line-height:1.3;}
+.wpm-list-card__excerpt{font-size:12px;color:var(--muted);}
+.wpm-list-card__meta{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+
+.wpm-pagination{display:flex;gap:8px;margin-top:20px;}
+.wpm-pagination a,.wpm-pagination span{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:4px;background:var(--card);border:1px solid var(--border);font-size:13px;font-weight:700;}
+.wpm-pagination span.is-active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+/* ── Article page ── */
+.wpm-badge{display:inline-block;background:var(--accent);color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:3px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+.wpm-badge.c2{background:var(--accent2);}
+.wpm-badge.c3{background:var(--gold);color:var(--ink);}
+.wpm-badge.c4{background:var(--violet);}
+.wpm-article{display:grid;grid-template-columns:1.8fr 1fr;gap:24px;margin-top:6px;}
+.wpm-article__title{font-size:26px;font-weight:800;line-height:1.25;margin-bottom:10px;}
+.wpm-article__meta{font-size:12px;color:var(--muted);margin-bottom:16px;}
+.wpm-article__cover{width:100%;border-radius:8px;margin-bottom:18px;}
+.wpm-article__body{font-size:15px;line-height:1.75;color:#26282d;}
+.wpm-article__body p{margin-bottom:16px;}
+.wpm-article__body img{border-radius:6px;margin:16px 0;}
+
+/* ── Ad slots ── */
+.wpm-ad-slot{display:block;margin-bottom:20px;border-radius:6px;overflow:hidden;background:var(--card);border:1px solid var(--border);}
+.wpm-ad__label{display:block;font-size:10px;color:var(--muted);padding:4px 8px;}
+
+/* ── Footer ── */
+.wpm-footer{background:var(--ink);color:#8b95a5;padding:32px 0 0;margin-top:20px;font-size:13px;}
+.wpm-footer__grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;padding-bottom:20px;border-bottom:1px solid #1e293b;}
+.wpm-footer__brand{color:#fff;font-size:20px;font-weight:900;margin-bottom:10px;}
+.wpm-footer__brand span{color:var(--accent);}
+.wpm-footer__about{max-width:230px;line-height:1.5;}
+.wpm-footer h4{color:#fff;font-size:13px;font-weight:800;text-transform:uppercase;margin-bottom:12px;letter-spacing:.5px;}
+.wpm-footer ul{list-style:none;}
+.wpm-footer li{margin-bottom:8px;}
+.wpm-footer__bottom{padding:16px 0;text-align:center;font-size:12px;color:#64748b;}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  .wpm-page{grid-template-columns:1fr;}
+  .wpm-rail{display:none;}
+  .wpm-bento{flex-direction:column;height:auto;}
+  .wpm-bento__main{height:220px;}
+  .wpm-bento__side{flex-direction:row;height:140px;}
+  .wpm-bottom-grid,.wpm-listing-grid,.wpm-article{grid-template-columns:1fr;}
+  .wpm-list-card,.wpm-tips-item{grid-template-columns:110px 1fr;}
+}
