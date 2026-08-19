@@ -9,7 +9,7 @@ if (!$article) {
     http_response_code(404);
     $pageTitle = 'Artikel tidak ditemukan — ' . WPM_SITE_NAME;
     require __DIR__ . '/includes/site-header.php';
-    echo '<h1 class="wpm-page-title">Artikel tidak ditemukan</h1><p><a href="' . wpm_esc(wpm_base_url('/')) . '">Kembali ke beranda</a></p>';
+    echo '<div class="wpm-wrap"><h1 class="wpm-page-title">Artikel tidak ditemukan</h1><p><a href="' . wpm_esc(wpm_base_url('/')) . '">Kembali ke beranda</a></p></div>';
     require __DIR__ . '/includes/site-footer.php';
     exit;
 }
@@ -26,6 +26,7 @@ $metaDescription = $article['meta_description'] ?: $article['excerpt'];
 $activeNavSlug = $article['category_slug'] ?? '';
 require __DIR__ . '/includes/site-header.php';
 ?>
+<div class="wpm-wrap">
 <div class="wpm-breadcrumb">
   <a href="<?= wpm_esc(wpm_base_url('/')) ?>">Beranda</a>
   <?php if ($article['category_slug']): ?> / <a href="<?= wpm_esc(wpm_category_url($article['category_slug'])) ?>"><?= wpm_esc($article['category_name']) ?></a><?php endif; ?>
@@ -67,6 +68,7 @@ require __DIR__ . '/includes/site-header.php';
     <?php endforeach; ?>
     <?= wpm_render_ad_slot($pdo, 'sidebar-right', 'article', (int) $article['page_id']) ?>
   </aside>
+</div>
 </div>
 
 <?php require __DIR__ . '/includes/site-footer.php'; ?>

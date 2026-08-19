@@ -3,25 +3,30 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/site-bootstrap.php';
 
 $navCategories = wpm_site_nav_categories();
+$navSlugs = array_keys($navCategories);
 $headlines = wpm_get_category_headlines($pdo); // slug => article, in nav order
 $popular = wpm_get_popular_articles($pdo, 5);
 
-// Filmstrip data: up to 8 latest articles per category (skip categories
+// List-section data: up to 8 latest articles per category (skip categories
 // with zero articles entirely, rather than rendering an empty section).
 $byCategory = [];
-foreach (array_keys($navCategories) as $slug) {
+foreach ($navSlugs as $slug) {
     $rows = wpm_get_articles($pdo, 8, 0, $slug);
     if ($rows) {
         $byCategory[$slug] = $rows;
     }
 }
 
-// "Tips" gets its own bottom list section (matches mockup layout) if it
-// has articles; otherwise falls back gracefully — index below just checks.
-$tipsArticles = wpm_get_articles($pdo, 3, 0, 'tips');
+// The last nav category gets its own bottom list section paired with the
+// "Terpopuler" sidebar (matches mockup V3 layout) — generalized from the
+// nav order instead of a hardcoded slug, so this keeps working if the
+// category list changes again later.
+$lastSlug = $navSlugs[count($navSlugs) - 1] ?? null;
+$mainSlugs = array_slice($navSlugs, 0, -1);
+$lastArticles = $lastSlug !== null ? wpm_get_articles($pdo, 3, 0, $lastSlug) : [];
 
 $pageTitle = WPM_SITE_NAME . ' — ' . WPM_SITE_TAGLINE;
-$metaDescription = 'Berita dan update olahraga terkini: Bulu Tangkis, Tinju, Moto GP, dan Tips seputar dunia olahraga di ' . WPM_SITE_NAME . '.';
+$metaDescription = 'Berita dan update terkini seputar ' . implode(', ', $navCategories) . ' di ' . WPM_SITE_NAME . '.';
 $activeNavSlug = 'home';
 require __DIR__ . '/includes/site-header.php';
 ?>
@@ -46,14 +51,14 @@ require __DIR__ . '/includes/site-header.php';
 </div>
 <?php endif; ?>
 
+<div class="wpm-wrap">
+
 <?php if ($headlines): ?>
 <?php
-  // Flex-based bento: first headline is the big "main" item, any
-  // remaining headlines (0-3 of them, depending how many categories
-  // have articles yet) stack in the side column. No fixed 5-slot grid,
-  // so there's never a leftover empty cell when fewer than 4 categories
-  // have content yet (see site.css .wpm-bento comment for the bug this
-  // replaced — flagged by operator 13 Agu 2026).
+  // Flex-based hero: first headline is the big "main" item, any remaining
+  // headlines (0-3 of them, depending how many categories have articles
+  // yet) stack in the side column. No fixed 4-slot grid, so there's never
+  // a leftover empty cell when fewer than 4 categories have content yet.
   $bentoItems = array_values($headlines);
   $bentoSlugs = array_keys($headlines);
   $bentoMain = $bentoItems[0];
@@ -66,17 +71,16 @@ require __DIR__ . '/includes/site-header.php';
       $wrapClass = $isMain ? 'wpm-bento__item wpm-bento__main ' . $colorClass : 'wpm-bento__item ' . $colorClass;
       echo '<a href="' . wpm_esc(wpm_article_url($item['slug'])) . '" class="' . $wrapClass . '">';
       echo '<img src="' . wpm_esc(wpm_image_url($item['featured_image'])) . '" alt="' . wpm_esc($item['title']) . '">';
-      echo '<span class="wpm-bento__tag">' . wpm_esc($navCategories[$slug] ?? '') . '</span>';
       echo '<span class="wpm-bento__cap">';
+      echo '<span class="wpm-bento__tag">' . wpm_esc($navCategories[$slug] ?? '') . '</span>';
       echo '<span class="wpm-bento__title">' . wpm_esc($item['title']) . '</span>';
       echo '<span class="wpm-bento__meta">' . wpm_esc(wpm_time_ago($item['published_at'])) . '</span>';
       echo '</span></a>';
   };
 ?>
 <div class="wpm-bento">
-  <?php // Main item always gets .wpm-bento__main (flex:1.6) — as the sole
-        // flex child when there's no side column yet, that still grows
-        // to fill 100% of the row's width. ?>
+  <?php // Main item always gets .wpm-bento__main — as the sole grid child
+        // when there's no side column yet, this still fills the row. ?>
   <?php $renderBentoItem($bentoMain, $bentoMainSlug, true); ?>
   <?php if ($bentoSide): ?>
   <div class="wpm-bento__side">
@@ -86,13 +90,13 @@ require __DIR__ . '/includes/site-header.php';
 </div>
 <?php else: ?>
 <div class="wpm-empty-state">
-  <span class="wpm-empty-state__icon" aria-hidden="true">🏸</span>
+  <span class="wpm-empty-state__icon" aria-hidden="true">🏆</span>
   <h2>Belum ada artikel</h2>
-  <p>Artikel yang dipublikasikan di kategori Bulu Tangkis, Tinju, Moto GP, atau Tips akan tampil di sini.</p>
+  <p>Artikel yang dipublikasikan di kategori <?= wpm_esc(implode(', ', $navCategories)) ?> akan tampil di sini.</p>
 </div>
 <?php endif; ?>
 
-<?php foreach (['bulu-tangkis', 'tinju', 'moto-gp'] as $slug):
+<?php foreach ($mainSlugs as $slug):
   if (empty($byCategory[$slug])) { continue; }
   $label = $navCategories[$slug];
   $colorClass = wpm_category_color_class($slug);
@@ -102,7 +106,7 @@ require __DIR__ . '/includes/site-header.php';
   <a class="wpm-more" href="<?= wpm_esc(wpm_category_url($slug)) ?>">Lihat semua &rarr;</a>
 </div>
 <div class="wpm-filmstrip">
-  <?php foreach ($byCategory[$slug] as $article): ?>
+  <?php foreach (array_slice($byCategory[$slug], 0, 2) as $article): ?>
   <a href="<?= wpm_esc(wpm_article_url($article['slug'])) ?>" class="wpm-film-card">
     <img src="<?= wpm_esc(wpm_image_url($article['featured_image'])) ?>" alt="<?= wpm_esc($article['title']) ?>">
     <span class="wpm-film-card__body">
@@ -116,13 +120,15 @@ require __DIR__ . '/includes/site-header.php';
 
 <div class="wpm-bottom-grid">
   <div>
-    <div class="wpm-sec-head c4">
-      <span class="wpm-chip">Tips</span>
-      <a class="wpm-more" href="<?= wpm_esc(wpm_category_url('tips')) ?>">Lihat semua &rarr;</a>
+    <?php if ($lastSlug !== null): ?>
+    <div class="wpm-sec-head <?= wpm_category_color_class($lastSlug) ?>">
+      <span class="wpm-chip"><?= wpm_esc($navCategories[$lastSlug]) ?></span>
+      <a class="wpm-more" href="<?= wpm_esc(wpm_category_url($lastSlug)) ?>">Lihat semua &rarr;</a>
     </div>
-    <?php if ($tipsArticles): ?>
+    <?php endif; ?>
+    <?php if ($lastArticles): ?>
     <div class="wpm-tips-list">
-      <?php foreach ($tipsArticles as $article): ?>
+      <?php foreach ($lastArticles as $article): ?>
       <a href="<?= wpm_esc(wpm_article_url($article['slug'])) ?>" class="wpm-tips-item">
         <img src="<?= wpm_esc(wpm_image_url($article['featured_image'])) ?>" alt="<?= wpm_esc($article['title']) ?>">
         <span class="wpm-tips-item__body">
@@ -133,7 +139,7 @@ require __DIR__ . '/includes/site-header.php';
       <?php endforeach; ?>
     </div>
     <?php else: ?>
-      <p class="wpm-sidebar-empty">Belum ada artikel Tips.</p>
+      <p class="wpm-sidebar-empty">Belum ada artikel <?= $lastSlug !== null ? wpm_esc($navCategories[$lastSlug]) : '' ?>.</p>
     <?php endif; ?>
   </div>
 
@@ -147,6 +153,8 @@ require __DIR__ . '/includes/site-header.php';
     <?php endforeach; ?>
     <?php if (!$popular): ?><p class="wpm-sidebar-empty">Belum ada data.</p><?php endif; ?>
   </div>
+</div>
+
 </div>
 
 <?php require __DIR__ . '/includes/site-footer.php'; ?>

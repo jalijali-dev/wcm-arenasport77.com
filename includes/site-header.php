@@ -1,15 +1,18 @@
 <?php
 declare(strict_types=1);
 /**
- * includes/site-header.php — shared header partial for Biang Olahraga.
- * Implements the approved mockup V2 (homepage-mockup-v2.html): solid
- * black bar, bold uppercase menu on the LEFT, search on the RIGHT behind
- * a plain vertical divider (the original diagonal-cut divider looked
- * broken in practice — flagged by operator 13 Agu 2026 and replaced),
- * brand name at the head of the nav. Also opens
- * the <div class="wpm-page"> wrapper + sticky vertical category rail —
- * every page using this partial MUST close with </div> before
- * site-footer.php (site-footer.php does not close it for you).
+ * includes/site-header.php — shared header partial for ArenaSport77.
+ * Implements the approved mockup V3 (docs/homepage-mockup-v3.html, update
+ * 19 Agu 2026, rebrand dari Biang Olahraga): tema biru cerah, header
+ * putih simple (logo kiri, nav horizontal, search kanan sebagai pill
+ * bulat), TANPA rail kategori vertikal lagi (dihapus bareng mockup
+ * V2/tema gelap punya Biang Olahraga). Opens <main class="wpm-content">
+ * only (NOT .wpm-wrap) — full-bleed sections like the homepage ticker
+ * need to sit outside the 1200px wrap, so each page is responsible for
+ * wrapping its own content in <div class="wpm-wrap">...</div> wherever
+ * it wants that max-width applied. Every page using this partial MUST
+ * close </main> before site-footer.php (site-footer.php does not close
+ * it for you).
  *
  * Expects (optional): $pageTitle, $metaDescription, $activeNavSlug.
  */
@@ -32,8 +35,8 @@ $navCategories = wpm_site_nav_categories();
 
 <header class="wpm-header">
   <div class="wpm-wrap wpm-header__bar">
+    <a href="<?= wpm_esc(wpm_base_url('/')) ?>" class="wpm-brand"><span class="wpm-brand__mark">A77</span> <?= wpm_esc(WPM_SITE_NAME) ?></a>
     <nav class="wpm-header__nav-left" aria-label="Navigasi utama">
-      <a href="<?= wpm_esc(wpm_base_url('/')) ?>" class="wpm-brand">BIANG<span class="wpm-brand__accent">OLAHRAGA</span></a>
       <a href="<?= wpm_esc(wpm_base_url('/')) ?>" class="<?= $activeNavSlug === 'home' ? 'is-active' : '' ?>">Home</a>
       <?php foreach ($navCategories as $navSlug => $navLabel): ?>
       <a href="<?= wpm_esc(wpm_category_url($navSlug)) ?>" class="<?= $activeNavSlug === $navSlug ? 'is-active' : '' ?>"><?= wpm_esc($navLabel) ?></a>
@@ -42,19 +45,10 @@ $navCategories = wpm_site_nav_categories();
     <div class="wpm-header__search-wrap">
       <form class="wpm-header__search" action="<?= wpm_esc(wpm_base_url('/cari.php')) ?>" method="get" role="search">
         <svg class="wpm-header__search-icon" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input type="text" name="q" placeholder="Search" aria-label="Cari berita">
+        <input type="text" name="q" placeholder="Cari" aria-label="Cari berita">
       </form>
     </div>
   </div>
 </header>
 
-<div class="wpm-page">
-  <aside class="wpm-rail" aria-label="Kategori">
-    <?php foreach ($navCategories as $navSlug => $navLabel): ?>
-    <a href="<?= wpm_esc(wpm_category_url($navSlug)) ?>" class="wpm-rail__<?= wpm_esc(wpm_category_color_class($navSlug)) ?> <?= $activeNavSlug === $navSlug ? 'is-active' : '' ?>"><?= wpm_esc($navLabel) ?></a>
-    <div class="wpm-rail__dot"></div>
-    <?php endforeach; ?>
-  </aside>
-
-  <main class="wpm-content">
-    <div class="wpm-wrap">
+<main class="wpm-content">

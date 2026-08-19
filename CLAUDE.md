@@ -1,11 +1,33 @@
-# Project: WCM 2 - Version 1 — "Tentakel 2" untuk struktur PBN — brand: Biang Olahraga
+# Project: WCM 2 - Version 2 — "Tentakel 2" untuk struktur PBN — brand: ArenaSport77
 
 > **WAJIB DIBACA DI AWAL SESI, SEBELUM AKSI APAPUN.** File ini adalah
 > instruksi proyek, bukan sekadar catatan — ikuti isinya. Setelah baca
 > file ini, baca juga `docs/HANDOFF.md` (checklist detail) dan
 > `docs/ROADMAP.md` (status per fase) sebelum mulai kerja. Kalau ada
-> keputusan besar yang masih kosong di bawah (permalink, domain), TANYA
-> operator dulu lewat chat — jangan asumsi atau eksekusi sendiri duluan.
+> keputusan besar yang masih kosong di bawah (permalink), TANYA operator
+> dulu lewat chat — jangan asumsi atau eksekusi sendiri duluan.
+
+> **REBRAND 19 Agu 2026 — baca ini duluan, timpa semua yang di bawah
+> soal "Biang Olahraga".** Operator mengganti brand & domain: brand dan
+> nama proyek sekarang **ArenaSport77**, domain final **arenasport77.com**
+> (ganti dari draft sebelumnya "Biang Olahraga" / biangolahraga.com — DUA
+> pivot beruntun: kategori diganti duluan, lalu brand/domain diganti
+> lagi). **4 kategori final juga berubah**: ~~Bulu Tangkis, Tinju, Moto
+> GP, Tips~~ → **Olahraga, Gaya Hidup, Sepak Bola, Otomotif**. Tema visual
+> mockup juga diganti total (bukan revisi) dari dark/bento/rail-vertikal
+> ala juara.net ke **tema biru cerah, layout editorial/list ala CNN
+> Indonesia**, nav simple (Home/Olahraga/Gaya Hidup/Sepak Bola/Otomotif)
+> — lihat `docs/homepage-mockup-v3.html` (disetujui operator) dan sudah
+> diimplementasikan penuh ke kode PHP (index.php, kategori.php,
+> artikel.php, cari.php, site-header/footer.php, site.css,
+> site-bootstrap.php). Git repo remote juga sudah di-rename ke
+> `github.com/jalijali-dev/wcm-arenasport77.com`. `DB_NAME` **tidak**
+> ikut berubah — tetap `wpm_cms_wcm2_version2` (operator sengaja pilih
+> nama kerja generik, bukan ikut nama brand, supaya gak perlu rename DB
+> lagi tiap kali brand berubah). Paragraf-paragraf di bawah yang masih
+> menyebut "Biang Olahraga" / kategori lama dibiarkan sebagai jejak
+> historis proses keputusan — JANGAN dianggap kondisi final, ikuti update
+> ini.
 
 ## Konteks & tujuan
 
@@ -22,9 +44,26 @@ gelap/dark dominan dengan aksen warna per kategori, header menu-kiri +
 search-kanan, rail kategori vertikal sticky, hero bento asimetris,
 artikel per kategori sebagai filmstrip horizontal-scroll).
 
+> **Update 19 Agu 2026 — dokumen ini sempat ketinggalan dari kondisi
+> repo asli.** Domain **sudah final: biangolahraga.com**. Git repo sudah
+> diinisialisasi (`origin: github.com/jalijali-dev/wcm-biangolahraga.com`,
+> 1 commit "Initial commit — biangolahraga.com go-live prep") dan
+> `.cpanel.yml` sudah ada untuk deploy cPanel (path `DEPLOYPATH` masih
+> placeholder `/home/USERNAME/public_html/`, wajib diganti sebelum deploy
+> pertama). Yang **belum** disinkronkan ke domain final: `DB_NAME` di
+> `cms-admin/config/database.php` masih `wpm_cms_wcm2_version1` (nama
+> kerja lama), belum diganti ke pola nama biangolahraga. Struktur
+> permalink masih pola sementara `/artikel/{slug}` & `/kategori/{slug}` —
+> belum ada konfirmasi eksplisit dari operator kalau ini final atau
+> masih mau diganti. Detail lengkap: lihat update senada di
+> `docs/HANDOFF.md` dan `docs/ROADMAP.md`.
+
 Domain dan detail struktur permalink WCM 2 **masih belum ditentukan**
 per 13 Agu 2026 — lihat `docs/HANDOFF.md` untuk daftar lengkap hal yang
 masih perlu dikonfirmasi operator sebelum lanjut ke tahap berikutnya.
+**(Update 19 Agu: domain sudah final, lihat catatan update di atas —
+paragraf ini dibiarkan sebagai jejak historis, jangan dianggap kondisi
+saat ini.)**
 
 **Detail lengkap proses clone/setup:** lihat `docs/HANDOFF.md`.
 **Progress per fase:** lihat `docs/ROADMAP.md`.
@@ -70,22 +109,33 @@ masih perlu dikonfirmasi operator sebelum lanjut ke tahap berikutnya.
   referensi visual juara.net, tema gelap, rail kategori vertikal, hero
   bento asimetris, filmstrip artikel per kategori).
 
-## Yang BELUM dikerjakan — task list buat lanjut
+## Yang BELUM dikerjakan — task list buat lanjut (update 19 Agu 2026, pasca-rebrand ArenaSport77)
 
-1. Kasih detail struktur permalink yang mau dibuat beda dari
-   `/artikel/{slug}` punya wcm1_version1.
-2. Jalanin schema migration di database `wpm_cms_wcm2_version1` (tabel
-   masih kosong), lalu input 4 kategori final (Bulu Tangkis/Tinju/Moto
-   GP/Tips) ke CMS.
-3. Audit ulang modul cms-admin sesuai konteks multi-cabang olahraga
-   (bukan cuma sepak bola seperti wcm1_version1).
-4. Implementasikan mockup homepage yang sudah disetujui ke frontend
-   publik sungguhan (index.php, kategori.php, artikel.php,
-   site-header.php, dst.) — sambungkan ke data CMS real begitu poin 1-2
-   selesai.
-5. Ganti tagline placeholder `WCM2.VERSION1` di admin panel ke "Biang
-   Olahraga" begitu operator konfirmasi nama ini final.
-6. Domain, Git repo, hosting cPanel, GSC — semua menunggu domain final.
+0. ~~Verifikasi visual di browser~~ — **selesai (19 Agu 2026)**, operator
+   sudah buka homepage/kategori/artikel langsung dan konfirmasi tampilan
+   V3 (tema biru, layout list-style, nav baru) render benar.
+1. Konfirmasi ke operator: permalink `/artikel/{slug}` & `/kategori/{slug}`
+   dipakai permanen, atau masih mau diganti pola lain sebelum go-live?
+2. Audit ulang modul cms-admin sesuai konteks 4 kategori baru (Olahraga,
+   Gaya Hidup, Sepak Bola, Otomotif — beda total dari draft sebelumnya
+   yang multi-cabang-olahraga-doang) — termasuk **Growth Agent**
+   (`cms-admin/pages/growth-agent.php`), prompt-nya masih warisan
+   sepak-bola-doang dari wcm1_version1, belum disesuaikan.
+3. **Sebagian selesai (19 Agu 2026):** 3 artikel contoh pertama sudah
+   ditulis & di-input (published, dengan featured image) — 1 di
+   Olahraga, 1 di Sepak Bola, 1 di Otomotif. Kategori **Gaya Hidup masih
+   kosong total**, dan 3 artikel yang ada baru starter — masih perlu
+   volume konten asli (bukan copy-paste) yang jauh lebih banyak buat
+   SEO & PBN.
+4. Isi placeholder yang masih tersisa: logo profesional final untuk
+   ArenaSport77 (favicon publik sekarang masih wordmark teks "A77"
+   sederhana), path `DEPLOYPATH` di `.cpanel.yml` (masih placeholder
+   `/home/USERNAME/public_html/`), robots.txt/sitemap/GSC (Fase 7 SEO,
+   belum mulai).
+5. Cek ulang semua dokumen (CLAUDE.md, HANDOFF.md, ROADMAP.md) masih ada
+   banyak paragraf historis yang menyebut "Biang Olahraga"/kategori lama
+   dari sebelum rebrand — dibiarkan sebagai jejak keputusan, tapi kalau
+   dirasa kepanjangan/membingungkan bisa diminta rapikan ulang.
 
 ## Cara lanjut sesi ini
 

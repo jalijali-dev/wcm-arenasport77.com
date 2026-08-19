@@ -20,6 +20,7 @@ if ($q !== '') {
 $pageTitle = ($q !== '' ? 'Hasil pencarian: ' . $q : 'Cari') . ' — ' . WPM_SITE_NAME;
 require __DIR__ . '/includes/site-header.php';
 ?>
+<div class="wpm-wrap">
 <h1 class="wpm-page-title"><?= $q !== '' ? 'Hasil untuk &ldquo;' . wpm_esc($q) . '&rdquo;' : 'Cari Berita' ?></h1>
 
 <div class="wpm-listing-main" style="max-width:760px;">
@@ -34,6 +35,7 @@ require __DIR__ . '/includes/site-header.php';
   </a>
   <?php endforeach; ?>
   <?php if ($q !== '' && !$results): ?><p class="wpm-sidebar-empty">Tidak ada hasil untuk "<?= wpm_esc($q) ?>".</p><?php endif; ?>
+</div>
 </div>
 
 <?php require __DIR__ . '/includes/site-footer.php'; ?>

@@ -1,8 +1,92 @@
-# HANDOFF — WCM 2 - Version 1
+# HANDOFF — WCM 2 - Version 2
 
 Dokumen ini merekam apa yang sudah dieksekusi saat proses clone/handoff
 `cms-admin/` dari **wcm1_version1** (Tentakel 1, dulu olahraga77.com) ke
 proyek ini, mengikuti checklist standar di `wcm1_version1/docs/HANDOFF-CMS-ADMIN.md`.
+
+## REBRAND 19 Agu 2026 — ArenaSport77 (baca ini duluan)
+
+Sama hari, dua pivot beruntun dari operator setelah bagian "Update 19 Agu
+2026" di bawah ini ditulis:
+
+1. **Kategori final diganti**: ~~Bulu Tangkis, Tinju, Moto GP, Tips~~ →
+   **Olahraga, Gaya Hidup, Sepak Bola, Otomotif**.
+2. **Brand & domain diganti total**: ~~Biang Olahraga / biangolahraga.com~~
+   → **ArenaSport77 / arenasport77.com**.
+
+Yang sudah dieksekusi menyusul kedua pivot ini:
+- Mockup homepage **V3 disetujui operator** — tema biru cerah, layout
+  editorial/list ala CNN Indonesia (bukan dark/bento/rail-vertikal ala
+  juara.net lagi), nav simple (Home/Olahraga/Gaya Hidup/Sepak
+  Bola/Otomotif). File: `docs/homepage-mockup-v3.html`.
+- **Sudah diimplementasikan penuh ke kode PHP**: `includes/site-bootstrap.php`
+  (site identity, 4 kategori baru, color mapping, fallback kategori stale
+  diganti dari "tips" ke "olahraga"), `includes/site-header.php` /
+  `site-footer.php` (header tanpa rail vertikal lagi, cuma nav horizontal
+  + search pill), `index.php` (hero + list-section per kategori,
+  digeneralisasi dari nav order — gak hardcode nama kategori lagi),
+  `kategori.php`, `artikel.php`, `cari.php` (semua dibungkus
+  `.wpm-wrap` konsisten), `assets/css/site.css` (rewrite total ke tema
+  biru), `assets/img/favicon.svg` (wordmark "A77" biru), 
+  `cms-admin/config/app.php` (`CMS_ADMIN_TAGLINE` → "ArenaSport77").
+- **Git remote di-rename** ke
+  `github.com/jalijali-dev/wcm-arenasport77.com.git` (dari
+  `wcm-biangolahraga.com`, operator sudah rename repo-nya duluan di
+  GitHub).
+- `DB_NAME` **TIDAK ikut berubah** — tetap `wpm_cms_wcm2_version2` (nama
+  kerja generik, sengaja gak diikat ke nama brand supaya gak perlu
+  rename DB lagi tiap kali brand berubah — lihat juga catatan di
+  "Update 19 Agu 2026" bagian bawah soal insiden isolasi DB & script
+  `_cleanup-fresh-start.php` yang sudah dijalankan terhadap DB ini).
+- Logo admin panel (`cms-admin/assets/img/logo.png`) **TIDAK diganti** —
+  itu memang mark generik "WCM" yang dipakai sama di semua Tentakel
+  admin panel (lihat komentar `cms_favicon_url()` di
+  `cms-admin/includes/functions.php`), terpisah dari identitas brand
+  publik. Bukan bug, jangan disamakan sama identitas ArenaSport77.
+
+**Update 19 Agu 2026 (lanjutan) — verifikasi visual SELESAI:** operator
+sudah buka situs langsung di browser (homepage, kategori, artikel) dan
+konfirmasi tampilan V3 (tema biru, layout list-style, nav baru) render
+benar. Coret dari daftar "belum".
+
+**Belum dikerjakan pasca-rebrand**: audit modul cms-admin & prompt
+Growth Agent buat konteks 4 kategori baru, artikel pertama, logo
+profesional final, `DEPLOYPATH` di `.cpanel.yml`.
+
+Sisa isi dokumen di bawah ini (termasuk bagian "Update 19 Agu 2026" tepat
+di bawah) ditulis SEBELUM rebrand — masih menyebut "Biang Olahraga" dan
+kategori lama (Bulu Tangkis/Tinju/Moto GP/Tips). Dibiarkan sebagai jejak
+historis proses keputusan, JANGAN dianggap kondisi final.
+
+## Update 19 Agu 2026 (dokumen sempat ketinggalan dari repo asli)
+
+Waktu direview ulang, kondisi repo sudah lebih maju dari catatan
+terakhir di dokumen ini (16 Agu):
+
+- **Domain sudah final: biangolahraga.com.**
+- **Git repo sudah diinisialisasi** — remote
+  `github.com/jalijali-dev/wcm-biangolahraga.com`, 1 commit ("Initial
+  commit — biangolahraga.com go-live prep"), working tree bersih.
+- **`.cpanel.yml` sudah dibuat** untuk deploy lewat cPanel Git Version
+  Control (rsync exclude `.git`, `cms-admin/config/database.php`,
+  `cms-admin/config/app.php`, `uploads/`) — `DEPLOYPATH` masih
+  placeholder `/home/USERNAME/public_html/`, **wajib diganti** ke path
+  docroot cPanel asli sebelum deploy pertama kali.
+- `DB_NAME` di `cms-admin/config/database.php` **belum** disinkronkan —
+  masih `wpm_cms_wcm2_version1` (nama kerja lama), belum diganti ke
+  pola nama final selaras biangolahraga.
+- 4 kategori final ternyata sudah didefinisikan sebagai single source
+  of truth di kode (`wpm_site_nav_categories()` di
+  `includes/site-bootstrap.php`), dan otomatis di-seed ke tabel
+  `article_categories` tiap kali frontend publik diakses lewat
+  `wpm_site_migrate_categories()` — **jadi seeding kategori kemungkinan
+  gak perlu dikerjakan manual**, tinggal diverifikasi isinya di database
+  saat ini.
+- Belum diverifikasi ulang: apakah tabel `pages`/`article_categories`
+  sudah ter-create di database, dan apakah kategori sudah genuinely
+  ke-insert (perlu akses langsung ke phpMyAdmin/DB dev lokal untuk
+  konfirmasi — di luar jangkauan sesi Cowork ini karena gak ada akses
+  jaringan ke stack Docker lokal operator).
 
 ## Konteks proyek
 
@@ -11,10 +95,9 @@ proyek ini, mengikuti checklist standar di `wcm1_version1/docs/HANDOFF-CMS-ADMIN
 - **Peran dalam struktur PBN:** "Tentakel 2" — backlink menunjuk ke
   **wcm1_version1 (Tentakel 1)**, bukan langsung ke money site. Sesuai
   diagram operator: Kepala ← Tentakel 1 ← Tentakel 2.
-- **Domain:** belum ditentukan (per 13 Agu 2026). `CMS_ADMIN_TAGLINE` dan
-  branding lain sementara diisi placeholder `WCM2.VERSION1` — **wajib
-  diganti** begitu domain final (dan bisa juga diganti duluan ke "Biang
-  Olahraga" begitu operator konfirmasi).
+- **Domain:** **sudah final — biangolahraga.com** (lihat update 19 Agu di
+  atas). `CMS_ADMIN_TAGLINE` sudah diganti ke "Biang Olahraga" (16 Agu),
+  tapi `DB_NAME` masih belum disinkronkan ke pola nama final.
 - **Topik/konten:** multi-cabang olahraga, 4 kategori final: **Bulu
   Tangkis, Tinju, Moto GP, Tips**.
 - **Tema visual:** dark/gelap dominan (referensi visual: juara.net —
@@ -218,18 +301,32 @@ proyek ini, mengikuti checklist standar di `wcm1_version1/docs/HANDOFF-CMS-ADMIN
 4. Ditest di browser: halaman login sampai dashboard, gak ada lagi
    tampilan yang nunjuk ke "WPM" atau brand project lain.
 
-## Yang perlu dikonfirmasi/dikerjakan operator sebelum lanjut
+## Yang perlu dikonfirmasi/dikerjakan operator sebelum lanjut (update 19 Agu 2026)
 
 1. **Detail struktur permalink** yang "agak beda" dari `/artikel/{slug}`
-   — perlu tau maunya seperti apa (misal `/berita/{slug}`,
-   `/{kategori}/{slug}`, dsb) sebelum frontend mulai diimplementasi ke
-   kode.
+   — masih belum ada konfirmasi eksplisit apakah pola sementara ini mau
+   dipakai permanen, atau operator masih mau struktur lain sebelum
+   go-live ke biangolahraga.com.
 2. ~~**Konfirmasi nama brand final** "Biang Olahraga"~~ — **selesai,
    nama brand sudah diganti di seluruh admin panel (config, sidebar,
    login, favicon) per 16 Agu 2026.**
-3. Domain final (kalau sudah ada) — untuk update tagline & mulai setup
-   Git/hosting/GSC.
-4. Setelah 3 poin di atas jelas: jalanin schema migration di database
-   yang sudah dibuat, input 4 kategori final ke CMS, audit ulang modul
-   cms-admin sesuai konteks multi-cabang olahraga, lalu mulai bangun
-   frontend publik dari mockup yang sudah disetujui.
+3. ~~**Domain final**~~ — **selesai, biangolahraga.com sudah final**, Git
+   repo & `.cpanel.yml` sudah dibuat (lihat update 19 Agu di atas).
+4. **Nama `DB_NAME` production/dev** — masih `wpm_cms_wcm2_version1`
+   (nama kerja lama). Perlu keputusan operator: rename ke pola final
+   (mis. `wpm_cms_biangolahraga`) sebelum atau sesudah deploy pertama?
+   Rename DB harus ikuti prosedur isolasi yang benar (bukan "Copy
+   database" phpMyAdmin — lihat insiden di atas), jadi butuh koordinasi
+   dengan operator yang punya akses phpMyAdmin dev lokal.
+5. **Verifikasi schema & seed kategori** — perlu operator (atau sesi yang
+   punya akses browser/network ke stack Docker lokal) buka admin panel
+   dan homepage sekali untuk memastikan tabel `pages`/`article_categories`
+   ter-create dan 4 kategori final ter-seed otomatis (logic-nya sudah ada
+   di kode, lihat update 19 Agu). Sesi Cowork ini gak bisa jangkau
+   `localhost`/Docker lokal operator langsung.
+6. **`DEPLOYPATH` di `.cpanel.yml`** — masih placeholder
+   `/home/USERNAME/public_html/`, perlu diganti ke path docroot cPanel
+   asli akun biangolahraga.com sebelum percobaan deploy pertama.
+7. Setelah poin 1, 4, 5 jelas: audit ulang modul cms-admin sesuai konteks
+   multi-cabang olahraga, lalu mulai tulis & input artikel asli (bukan
+   copy-paste) untuk 4 kategori final.

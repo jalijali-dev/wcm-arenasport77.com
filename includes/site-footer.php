@@ -1,13 +1,11 @@
 <?php declare(strict_types=1); ?>
-    </div>
-  </main>
-</div>
+</main>
 
 <footer class="wpm-footer">
   <div class="wpm-wrap wpm-footer__grid">
     <div>
-      <div class="wpm-footer__brand">Biang<span>Olahraga</span></div>
-      <p class="wpm-footer__about">Portal olahraga multi-cabang: Bulu Tangkis, Tinju, Moto GP, dan Tips seputar dunia olahraga.</p>
+      <div class="wpm-footer__brand"><?= wpm_esc(WPM_SITE_NAME) ?></div>
+      <p class="wpm-footer__about">Portal berita: Olahraga, Gaya Hidup, Sepak Bola, dan Otomotif.</p>
     </div>
     <div>
       <h4>Kategori</h4>
@@ -33,7 +31,7 @@
       </ul>
     </div>
   </div>
-  <div class="wpm-footer__bottom">&copy; <?= date('Y') ?> Biang Olahraga. Seluruh hak cipta dilindungi.</div>
+  <div class="wpm-footer__bottom">&copy; <?= date('Y') ?> <?= wpm_esc(WPM_SITE_NAME) ?>. Seluruh hak cipta dilindungi.</div>
 </footer>
 </body>
 </html>

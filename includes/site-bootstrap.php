@@ -2,21 +2,25 @@
 declare(strict_types=1);
 
 /**
- * includes/site-bootstrap.php — public-frontend bootstrap for Biang Olahraga
- * (WCM 2 - Version 1, "Tentakel 2").
+ * includes/site-bootstrap.php — public-frontend bootstrap for ArenaSport77
+ * (WCM 2 - Version 2, "Tentakel 2").
  *
  * Mirrors the pattern used in wcm1_version1/includes/site-bootstrap.php:
  * separate from cms-admin entirely, reuses only cms-admin/config/database.php
  * (DB connection) and cms-admin/includes/schema-guard.php — does NOT reuse
  * cms-admin's session/auth/admin UI.
  *
- * Focus of this site (per operator, 13 Agu 2026): multi-cabang olahraga —
- * Bulu Tangkis, Tinju, Moto GP, Tips. Nav: BULU TANGKIS / TINJU / MOTO GP / TIPS.
+ * Update 19 Agu 2026 (rebrand): niche & brand diganti dari "Biang Olahraga"
+ * (Bulu Tangkis/Tinju/Moto GP/Tips) ke **ArenaSport77** — domain final
+ * arenasport77.com, kategori final: Olahraga, Gaya Hidup, Sepak Bola,
+ * Otomotif. Tema visual juga diganti total ke mockup V3 (biru cerah, layout
+ * editorial/list ala CNN Indonesia, nav simple) — lihat
+ * docs/homepage-mockup-v3.html dan docs/HANDOFF.md untuk detail.
  *
- * NOTE (belum final): domain dan struktur permalink masih menunggu
- * konfirmasi operator (lihat docs/HANDOFF.md). Sementara pakai pola
- * /kategori/{slug} dan /artikel/{slug} yang sama dengan wcm1_version1,
- * TAPI di database yang terpisah — ganti kalau operator kasih struktur lain.
+ * NOTE: struktur permalink masih pola sementara /kategori/{slug} dan
+ * /artikel/{slug} (sama dengan wcm1_version1, TAPI di database yang
+ * terpisah) — belum ada konfirmasi final dari operator, lihat
+ * docs/HANDOFF.md.
  */
 
 require_once dirname(__DIR__) . '/cms-admin/config/database.php';
@@ -33,8 +37,8 @@ if (!function_exists('cms_slugify')) {
 }
 
 // ─── Site identity ──────────────────────────────────────────────────────────
-define('WPM_SITE_NAME', 'Biang Olahraga');
-define('WPM_SITE_TAGLINE', 'Kabar Bulu Tangkis, Tinju, Moto GP & Tips Olahraga');
+define('WPM_SITE_NAME', 'ArenaSport77');
+define('WPM_SITE_TAGLINE', 'Kabar Olahraga, Gaya Hidup, Sepak Bola & Otomotif');
 
 /**
  * Site can be deployed either at the domain root (production) or under a
@@ -63,34 +67,35 @@ function wpm_base_url(string $path = ''): string
 function wpm_site_nav_categories(): array
 {
     return [
-        'bulu-tangkis' => 'Bulu Tangkis',
-        'tinju'        => 'Tinju',
-        'moto-gp'      => 'Moto GP',
-        'tips'         => 'Tips',
+        'olahraga'   => 'Olahraga',
+        'gaya-hidup' => 'Gaya Hidup',
+        'sepak-bola' => 'Sepak Bola',
+        'otomotif'   => 'Otomotif',
     ];
 }
 
 /**
- * Maps a category slug to one of 4 accent color classes (c1-c4), matching
- * the approved mockup (homepage-mockup-v2.html): c1=merah, c2=teal,
- * c3=gold, c4=violet. Falls back to c1 for anything unrecognized so a
- * stray/future category never renders unstyled.
+ * Maps a category slug to one of 4 semantic accent color classes, matching
+ * the approved mockup V3 (homepage-mockup-v3.html, tema biru/editorial):
+ * olahraga=biru, gaya-hidup=cyan, sepak-bola=hijau, otomotif=oranye. Falls
+ * back to "olahraga" for anything unrecognized so a stray/future category
+ * never renders unstyled.
  */
 function wpm_category_color_class(?string $slug): string
 {
     return match ($slug) {
-        'tinju'   => 'c2',
-        'moto-gp' => 'c3',
-        'tips'    => 'c4',
-        default   => 'c1', // bulu-tangkis + fallback
+        'gaya-hidup' => 'gayahidup',
+        'sepak-bola' => 'sepakbola',
+        'otomotif'   => 'otomotif',
+        default      => 'olahraga', // olahraga + fallback
     };
 }
 
 /**
  * One-time-ish idempotent migration: ensure the 4 final categories exist
  * with the canonical labels, and reassign any article sitting in a
- * category outside the final 4 to "Tips" (the closest thing to a catch-all
- * here) before deleting the stale category row. Mirrors
+ * category outside the final 4 to "Olahraga" (the closest thing to a
+ * catch-all here) before deleting the stale category row. Mirrors
  * wpm_site_migrate_categories() in wcm1_version1 — including the fix for
  * the array_keys()-vs-array_values() bug found there on 12 Agu 2026 (the
  * NOT IN list here is built from array_keys($ids), i.e. slugs, not IDs).
@@ -131,7 +136,7 @@ function wpm_site_migrate_categories(PDO $pdo): void
             return;
         }
 
-        $fallbackId = $ids['tips'];
+        $fallbackId = $ids['olahraga'];
         $staleIds = array_map(static fn($r) => (int) $r['id'], $staleRows);
 
         $reassignPlaceholders = implode(',', array_fill(0, count($staleIds), '?'));

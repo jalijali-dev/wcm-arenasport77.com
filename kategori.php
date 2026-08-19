@@ -9,7 +9,7 @@ if ($slug === '' || !isset($navCategories[$slug])) {
     http_response_code(404);
     $pageTitle = 'Kategori tidak ditemukan — ' . WPM_SITE_NAME;
     require __DIR__ . '/includes/site-header.php';
-    echo '<h1 class="wpm-page-title">Kategori tidak ditemukan</h1><p><a href="' . wpm_esc(wpm_base_url('/')) . '">Kembali ke beranda</a></p>';
+    echo '<div class="wpm-wrap"><h1 class="wpm-page-title">Kategori tidak ditemukan</h1><p><a href="' . wpm_esc(wpm_base_url('/')) . '">Kembali ke beranda</a></p></div>';
     require __DIR__ . '/includes/site-footer.php';
     exit;
 }
@@ -30,6 +30,7 @@ $metaDescription = 'Kumpulan berita ' . $label . ' terbaru di ' . WPM_SITE_NAME 
 $activeNavSlug = $slug;
 require __DIR__ . '/includes/site-header.php';
 ?>
+<div class="wpm-wrap">
 <div class="wpm-breadcrumb"><a href="<?= wpm_esc(wpm_base_url('/')) ?>">Beranda</a> / <?= wpm_esc($label) ?></div>
 
 <div class="wpm-sec-head <?= $colorClass ?>">
@@ -75,6 +76,7 @@ require __DIR__ . '/includes/site-header.php';
     <?php endforeach; ?>
     <?php if (!$popular): ?><p class="wpm-sidebar-empty">Belum ada data.</p><?php endif; ?>
   </aside>
+</div>
 </div>
 
 <?php require __DIR__ . '/includes/site-footer.php'; ?>
