@@ -3,12 +3,12 @@
 # Commit". Sinkronin isi repo ke document root, KECUALI file yang memang
 # TIDAK PERNAH boleh ikut git (config kredensial asli + folder upload).
 #
-# WAJIB ganti /home/USERNAME/public_html/ di bawah ke path docroot asli
-# akun cPanel biangolahraga.com SEBELUM deploy pertama kali — cek path
-# sebenarnya di cPanel → Domains. Lihat docs/HANDOFF.md dan
+# Path docroot akun cPanel arenasport77.com (username cPanel: arenasport77) —
+# kalau ternyata beda pas dicek di cPanel → Domains, sesuaikan lagi baris
+# export DEPLOYPATH di bawah. Lihat docs/HANDOFF.md dan
 # wcm1_version1/docs/DEPLOY_WORKFLOW.md (pola yang sama, situs sebelah)
 # untuk detail lengkap alur deploy.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/USERNAME/public_html/
+    - export DEPLOYPATH=/home/arenasport77/public_html/
     - /usr/bin/rsync -av --exclude='.git' --exclude='.cpanel.yml' --exclude='cms-admin/config/database.php' --exclude='cms-admin/config/app.php' --exclude='uploads' ./ $DEPLOYPATH
