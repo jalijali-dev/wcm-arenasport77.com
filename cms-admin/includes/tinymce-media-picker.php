@@ -145,6 +145,26 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
     background: var(--surface-soft);
     letter-spacing: .02em;
 }
+#mce-ml-dropzone {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    margin: 0 0 12px; padding: 16px 12px;
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    background: var(--surface-soft);
+    color: var(--muted); font-size: 13px; text-align: center;
+    cursor: pointer; outline: none;
+    transition: border-color .14s ease, background .14s ease;
+}
+#mce-ml-dropzone:hover,
+#mce-ml-dropzone:focus,
+#mce-ml-dropzone.is-dragover {
+    border-color: var(--navlink-active-border);
+    background: var(--navlink-hover-bg);
+}
+#mce-ml-dropzone.is-uploading { opacity: .7; cursor: progress; pointer-events: none; }
+#mce-ml-dropzone.is-error { border-color: #d64545; }
+#mce-ml-dropzone-progress { font-size: 12px; }
+#mce-ml-dropzone-progress.is-error { color: #d64545; }
 .mce-ml-empty {
     grid-column: 1 / -1;
     padding: 24px; text-align: center;
@@ -166,6 +186,13 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
         </div>
 
         <div id="mce-ml-body">
+            <div id="mce-ml-dropzone" tabindex="0" role="button" aria-label="Upload gambar baru"
+                 data-upload-url="<?= htmlspecialchars(cms_action_href('media-upload.php'), ENT_QUOTES, 'UTF-8') ?>"
+                 data-csrf="<?= htmlspecialchars(cms_csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="file" id="mce-ml-file-input" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+                <span id="mce-ml-dropzone-text">Click to upload or drag &amp; drop an image here (max 5 MB)</span>
+                <span id="mce-ml-dropzone-progress" hidden></span>
+            </div>
             <div class="mce-ml-grid">
                 <?php if ($mceMlImages === []) : ?>
                     <p class="mce-ml-empty">No images found in the Media Library.</p>
@@ -227,7 +254,8 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
     var backdrop = document.getElementById('mce-ml-backdrop');
     var search   = document.getElementById('mce-ml-search');
     var closeBtn = document.getElementById('mce-ml-close');
-    var items    = document.querySelectorAll('.mce-ml-item');
+    var grid     = document.querySelector('.mce-ml-grid');
+    function getItems() { return grid ? grid.querySelectorAll('.mce-ml-item') : []; }
 
     if (!modal) return;
 
@@ -236,6 +264,7 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
     /* ---- open / close ---- */
     function openModal() {
         modal.hidden = false;
+        if (zoneProg) { showProgress('', false); }
         if (search) { search.value = ''; filterItems(''); search.focus(); }
     }
     function closeModal() {
@@ -246,7 +275,7 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
     /* ---- search filter ---- */
     function filterItems(q) {
         q = q.toLowerCase().trim();
-        items.forEach(function (item) {
+        getItems().forEach(function (item) {
             if (!q) { item.hidden = false; return; }
             var name = (item.getAttribute('data-name') || '').toLowerCase();
             item.hidden = name.indexOf(q) === -1;
@@ -294,7 +323,7 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
         search.addEventListener('input', function () { filterItems(search.value); });
     }
 
-    items.forEach(function (item) {
+    function bindItem(item) {
         // Mouse click
         item.addEventListener('click', function () { selectItem(item); });
         // Keyboard: Enter or Space for accessibility (role="button" + tabindex)
@@ -304,7 +333,129 @@ $mceMlProjectRoot = CMS_PROJECT_ROOT;
                 selectItem(item);
             }
         });
-    });
+    }
+    getItems().forEach(bindItem);
+
+    /* ---- drop-zone upload (POST actions/media-upload.php, one file per request) ---- */
+    var zone      = document.getElementById('mce-ml-dropzone');
+    var fileInput = document.getElementById('mce-ml-file-input');
+    var zoneText  = document.getElementById('mce-ml-dropzone-text');
+    var zoneProg  = document.getElementById('mce-ml-dropzone-progress');
+    var errTimer  = null;
+    var ALLOWED   = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    var MAX_BYTES = 5 * 1024 * 1024;
+
+    function showProgress(msg, isError) {
+        clearTimeout(errTimer);
+        zoneProg.textContent = msg;
+        zoneProg.hidden = !msg;
+        zoneProg.className = isError ? 'is-error' : '';
+        zone.classList.toggle('is-error', !!isError);
+        if (isError) {
+            errTimer = setTimeout(function () { showProgress('', false); }, 6000);
+        }
+    }
+
+    function addUploadedItem(d) {
+        var empty = grid.querySelector('.mce-ml-empty');
+        if (empty) { empty.remove(); }
+
+        var item = document.createElement('div');
+        item.className = 'mce-ml-item';
+        item.setAttribute('role', 'button');
+        item.tabIndex = 0;
+        item.title = d.file_name;
+        item.setAttribute('data-src', d.url);
+        item.setAttribute('data-path', d.file_path);
+        item.setAttribute('data-alt', '');
+        item.setAttribute('data-name', String(d.file_name).toLowerCase());
+        item.setAttribute('data-width', String(d.width || 0));
+        item.setAttribute('data-height', String(d.height || 0));
+
+        var img = document.createElement('img');
+        img.className = 'mce-ml-item__img';
+        img.src = d.url;
+        img.alt = d.file_name;
+        img.onerror = function () { img.style.display = 'none'; };
+        var nm = document.createElement('span');
+        nm.className = 'mce-ml-item__name';
+        nm.textContent = d.file_name;
+        item.appendChild(img);
+        item.appendChild(nm);
+        if (d.width > 0 && d.height > 0) {
+            var dm = document.createElement('span');
+            dm.className = 'mce-ml-item__dims';
+            dm.textContent = d.width + ' × ' + d.height;
+            item.appendChild(dm);
+        }
+        grid.insertBefore(item, grid.firstChild);
+        bindItem(item);
+    }
+
+    function uploadOne(file) {
+        if (ALLOWED.indexOf(file.type) === -1) {
+            return Promise.reject(new Error(file.name + ': only JPG, PNG, WebP or GIF images.'));
+        }
+        if (file.size > MAX_BYTES) {
+            return Promise.reject(new Error(file.name + ': exceeds the 5 MB limit.'));
+        }
+        var fd = new FormData();
+        fd.append('media_file', file);
+        return fetch(zone.getAttribute('data-upload-url'), {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-CSRF-Token': zone.getAttribute('data-csrf') || '' },
+            credentials: 'same-origin'
+        }).then(function (res) {
+            return res.text().then(function (txt) {
+                var data = null;
+                try { data = JSON.parse(txt); } catch (e) {}
+                if (!data || !data.ok) {
+                    throw new Error(file.name + ': ' + ((data && data.error) || 'upload failed (' + res.status + ').'));
+                }
+                return data;
+            });
+        });
+    }
+
+    function uploadFiles(fileList) {
+        var files = Array.prototype.slice.call(fileList || []);
+        if (!files.length) return;
+        zone.classList.add('is-uploading');
+        var errors = [];
+        var done = 0;
+        var chain = Promise.resolve();
+        files.forEach(function (file) {
+            chain = chain.then(function () {
+                showProgress('Uploading ' + (done + 1) + ' of ' + files.length + '…', false);
+                return uploadOne(file).then(addUploadedItem, function (e) { errors.push(e.message); })
+                    .then(function () { done++; });
+            });
+        });
+        chain.then(function () {
+            zone.classList.remove('is-uploading');
+            fileInput.value = '';
+            showProgress(errors.join(' · '), errors.length > 0);
+        });
+    }
+
+    if (zone && fileInput && grid) {
+        zone.addEventListener('click', function () { fileInput.click(); });
+        zone.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+        });
+        fileInput.addEventListener('click', function (e) { e.stopPropagation(); });
+        fileInput.addEventListener('change', function () { uploadFiles(fileInput.files); });
+        ['dragenter', 'dragover'].forEach(function (ev) {
+            zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add('is-dragover'); });
+        });
+        zone.addEventListener('dragleave', function () { zone.classList.remove('is-dragover'); });
+        zone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            zone.classList.remove('is-dragover');
+            uploadFiles(e.dataTransfer && e.dataTransfer.files);
+        });
+    }
 
     /**
      * TinyMCE file_picker_callback.

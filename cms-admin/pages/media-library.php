@@ -15,13 +15,31 @@ $breadcrumbs = [
 $selfUrl = 'media-library.php';
 
 /**
- * Auto-migration: idempotent column self-heal, safe to run on every load.
+ * Auto-migration: idempotent table + column self-heal, safe to run on every load.
  */
 $mediaSchemaError = null;
 try {
+    cms_ensure_table(
+        $pdo,
+        'media_library',
+        '`id` INT AUTO_INCREMENT PRIMARY KEY,
+         `file_name` VARCHAR(255) NOT NULL,
+         `file_path` VARCHAR(500) NOT NULL,
+         `file_type` VARCHAR(20) DEFAULT NULL,
+         `mime_type` VARCHAR(100) DEFAULT NULL,
+         `file_size_kb` INT UNSIGNED DEFAULT NULL,
+         `alt_text` VARCHAR(255) DEFAULT NULL,
+         `caption` VARCHAR(500) DEFAULT NULL,
+         `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+         `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+         `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+    );
+    cms_ensure_column($pdo, 'media_library', 'file_type', 'VARCHAR(20) DEFAULT NULL AFTER `file_path`');
     cms_ensure_column($pdo, 'media_library', 'mime_type', 'VARCHAR(100) DEFAULT NULL AFTER `file_type`');
     cms_ensure_column($pdo, 'media_library', 'file_size_kb', 'INT(10) UNSIGNED DEFAULT NULL AFTER `mime_type`');
-    cms_ensure_column($pdo, 'media_library', 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER `file_size_kb`');
+    cms_ensure_column($pdo, 'media_library', 'alt_text', 'VARCHAR(255) DEFAULT NULL AFTER `file_size_kb`');
+    cms_ensure_column($pdo, 'media_library', 'caption', 'VARCHAR(500) DEFAULT NULL AFTER `alt_text`');
+    cms_ensure_column($pdo, 'media_library', 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER `caption`');
     cms_ensure_column($pdo, 'media_library', 'updated_at', 'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`');
 } catch (Throwable $e) {
     $mediaSchemaError = $e->getMessage();
@@ -40,11 +58,11 @@ $ml_validate = static function (string $fileName, string $filePath, string $file
     if ($filePath === '') {
         return 'File path is required.';
     }
-    if ($fileType === '') {
+    if (!in_array($fileType, ['image', 'document', 'video', 'other'], true)) {
         return 'File type is required.';
     }
-    if ($fileSizeRaw !== '' && !is_numeric($fileSizeRaw)) {
-        return 'File size must be a number.';
+    if ($fileSizeRaw !== '' && (!ctype_digit($fileSizeRaw))) {
+        return 'File size must be a whole number.';
     }
 
     return null;
@@ -66,123 +84,43 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $ml_redirect('Media file deleted successfully.');
     }
 
-    // -------------------------------------------------------------------------
-    // File upload (optional — falls back to manual file_path if omitted)
-    // Stored path always uses a leading slash: /uploads/media/YYYY/MM/file.jpg
-    // -------------------------------------------------------------------------
-    $uploadedRelPath  = '';   // e.g. /uploads/media/2026/05/photo-abc123def456gh78.jpg
+    if (!in_array($action, ['create', 'update'], true)) {
+        $ml_redirect('Unknown action.', 'error');
+    }
+
+    // Where to send the admin back to when this submit fails.
+    $errQuery = ($action === 'update' && (int) ($_POST['id'] ?? 0) > 0)
+        ? 'edit=' . (int) $_POST['id'] : 'new=1';
+    // Optional file upload — falls back to the manual file_path when omitted.
+    $uploadedRelPath  = '';
     $uploadedFileName = '';
     $uploadedMime     = '';
     $uploadedSizeKb   = 0;
     $uploadedFileType = '';
 
-    $errEditQuery = ($action === 'update' && (int) ($_POST['id'] ?? 0) > 0)
-        ? 'edit=' . (int) $_POST['id'] : null;
-
-    // Guard file content — matches every other uploads/* guard exactly.
-    $guardContent = "<?php\ndeclare(strict_types=1);\n\nhttp_response_code(403);\nexit('Forbidden');\n";
-
     if (
         isset($_FILES['media_file']) && is_array($_FILES['media_file'])
         && (int) ($_FILES['media_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE
     ) {
-        $uploadErr = (int) ($_FILES['media_file']['error'] ?? UPLOAD_ERR_NO_FILE);
+        $uploadErr = (int) $_FILES['media_file']['error'];
         if ($uploadErr !== UPLOAD_ERR_OK) {
-            $ml_redirect('File upload failed (error code ' . $uploadErr . ').', 'error', $errEditQuery);
+            $ml_redirect('File upload failed (error code ' . $uploadErr . ').', 'error', $errQuery);
         }
-
-        $tmpName   = (string) ($_FILES['media_file']['tmp_name'] ?? '');
-        $origName  = (string) ($_FILES['media_file']['name']     ?? '');
-        $fileBytes = (int)    ($_FILES['media_file']['size']      ?? 0);
-
-        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
-            $ml_redirect('Invalid upload.', 'error', $errEditQuery);
+        try {
+            $saved = cms_handle_media_upload(
+                (string) ($_FILES['media_file']['tmp_name'] ?? ''),
+                (string) ($_FILES['media_file']['name'] ?? ''),
+                (int) ($_FILES['media_file']['size'] ?? 0)
+            );
+        } catch (RuntimeException $e) {
+            $ml_redirect($e->getMessage(), 'error', $errQuery);
         }
-        if ($fileBytes <= 0) {
-            $ml_redirect('Uploaded file is empty.', 'error', $errEditQuery);
-        }
-
-        // --- Step 1: preliminary extension check (fast, before finfo) ----------
-        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
-        $clientExt   = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
-        if ($clientExt === '' || !in_array($clientExt, $allowedExts, true)) {
-            $ml_redirect('Disallowed file extension.', 'error', $errEditQuery);
-        }
-
-        // --- Step 2: MIME detection via finfo (reads actual file bytes) ---------
-        // The map also provides the canonical saved extension — derived from
-        // the detected MIME, never from the client-supplied filename.
-        $mimeExtMap = [
-            'image/jpeg'      => 'jpg',
-            'image/png'       => 'png',
-            'image/webp'      => 'webp',
-            'image/gif'       => 'gif',
-            'application/pdf' => 'pdf',
-        ];
-        $finfo        = new finfo(FILEINFO_MIME_TYPE);
-        $detectedMime = (string) ($finfo->file($tmpName) ?: '');
-        if ($detectedMime === '' || !array_key_exists($detectedMime, $mimeExtMap)) {
-            $ml_redirect('Disallowed file type (' . $detectedMime . ').', 'error', $errEditQuery);
-        }
-
-        // --- Step 3: per-type size limit (5 MB images, 10 MB PDF) ---------------
-        $maxBytes = ($detectedMime === 'application/pdf') ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
-        if ($fileBytes > $maxBytes) {
-            $limitLabel = ($maxBytes === 10 * 1024 * 1024) ? '10 MB' : '5 MB';
-            $ml_redirect('File exceeds the ' . $limitLabel . ' limit for this file type.', 'error', $errEditQuery);
-        }
-
-        // Canonical extension comes from the MIME map, not the user's filename.
-        $ext = $mimeExtMap[$detectedMime];
-
-        // --- Step 4: create upload directory and write guard files if missing ---
-        $projectRoot = CMS_PROJECT_ROOT;
-        $yr          = date('Y');
-        $mo          = date('m');
-        $relBase     = 'uploads/media';
-        $relYear     = $relBase  . '/' . $yr;
-        $relDir      = $relYear  . '/' . $mo;
-        $diskDir     = $projectRoot . '/' . $relDir;
-
-        if (!is_dir($diskDir) && !mkdir($diskDir, 0755, true) && !is_dir($diskDir)) {
-            $ml_redirect('Upload directory could not be created.', 'error', $errEditQuery);
-        }
-        // Ensure each directory level has an index.php guard (403 on direct browse).
-        foreach ([$relBase, $relYear, $relDir] as $guardLevel) {
-            $guardFile = $projectRoot . '/' . $guardLevel . '/index.php';
-            if (!file_exists($guardFile)) {
-                file_put_contents($guardFile, $guardContent);
-                @chmod($guardFile, 0644);
-            }
-        }
-
-        // --- Step 5: safe filename — lowercase base + 16-char hex suffix --------
-        $base = trim(
-            (string) (preg_replace('/[^a-z0-9_-]+/', '-', strtolower(pathinfo($origName, PATHINFO_FILENAME))) ?? ''),
-            '-'
-        );
-        if ($base === '') { $base = 'upload'; }
-
-        do {
-            $safeFilename = $base . '-' . bin2hex(random_bytes(8)) . '.' . $ext;
-            $targetPath   = $diskDir . '/' . $safeFilename;
-        } while (file_exists($targetPath));
-
-        // --- Step 6: move to final location -------------------------------------
-        if (!move_uploaded_file($tmpName, $targetPath)) {
-            $ml_redirect('Could not save the uploaded file.', 'error', $errEditQuery);
-        }
-        @chmod($targetPath, 0644);
-
-        // Stored path uses leading slash — matches all other upload modules.
-        $uploadedRelPath  = '/' . $relDir . '/' . $safeFilename;
-        $uploadedFileName = $safeFilename;
-        $uploadedMime     = $detectedMime;
-        $uploadedSizeKb   = (int) ceil($fileBytes / 1024);
-        $uploadedFileType = str_starts_with($detectedMime, 'image/') ? 'image'
-                          : ($detectedMime === 'application/pdf' ? 'document' : 'other');
+        $uploadedRelPath  = $saved['file_path'];
+        $uploadedFileName = $saved['file_name'];
+        $uploadedMime     = $saved['mime_type'];
+        $uploadedSizeKb   = $saved['file_size_kb'];
+        $uploadedFileType = $saved['file_type'];
     }
-    // -------------------------------------------------------------------------
 
     $fileName    = trim((string) ($_POST['file_name']    ?? ''));
     $filePath    = trim((string) ($_POST['file_path']    ?? ''));
@@ -195,56 +133,43 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     // If a file was uploaded, its values take precedence over (possibly empty) form fields.
     if ($uploadedRelPath !== '') {
-        $filePath    = $uploadedRelPath;               // always use real saved path
-        $mimeType    = $uploadedMime;                  // always use detected MIME
-        $fileSizeRaw = (string) $uploadedSizeKb;       // always use actual size
-        $fileType    = $uploadedFileType;              // always use derived type
+        $filePath    = $uploadedRelPath;
+        $mimeType    = $uploadedMime;
+        $fileSizeRaw = (string) $uploadedSizeKb;
+        $fileType    = $uploadedFileType;
         if ($fileName === '') {
-            $fileName = $uploadedFileName;             // fill name only when still empty
+            $fileName = $uploadedFileName;
         }
     }
 
-    // Normalize file_path: always store with a leading slash.
-    // Consistent with /uploads/banners/x.jpg, /uploads/products/x.png, etc.
-    // app_asset_preview_url() tolerates both formats via ltrim, but normalising
-    // here prevents raw-concatenation bugs in future consumers.
-    if ($filePath !== '') {
+    // Manual path: either a full https:// URL, or a local path that starts
+    // with /uploads/ and has no traversal. Local paths get a leading slash.
+    $isHttpsUrl = preg_match('#^https://#i', $filePath) === 1;
+    if ($filePath !== '' && !$isHttpsUrl) {
         $filePath = '/' . ltrim($filePath, '/');
+        if (!app_is_safe_local_media_path($filePath)) {
+            $ml_redirect('Invalid file path. Use https:// URL, or a local path starting with /uploads/ without "..".', 'error', $errQuery);
+        }
     }
-
-    // H-3: reject manually entered local paths that escape /uploads/ or contain
-    // traversal. External http(s):// URLs are out of H-3 scope (see M-2) and are
-    // left unchanged. Uploaded files always produce a safe /uploads/ path.
-    if (
-        $filePath !== ''
-        && preg_match('#^https?://#i', $filePath) !== 1
-        && !app_is_safe_local_media_path($filePath)
-    ) {
-        $errorQuery = ($action === 'update' && (int) ($_POST['id'] ?? 0) > 0)
-            ? 'edit=' . (int) $_POST['id'] : null;
-        $ml_redirect('Invalid file path. Local paths must start with /uploads/ and cannot contain "..".', 'error', $errorQuery);
+    if (mb_strlen($filePath, 'UTF-8') > 500 || mb_strlen($fileName, 'UTF-8') > 255) {
+        $ml_redirect('File path (max 500) or file name (max 255) is too long.', 'error', $errQuery);
     }
 
     $validationError = $ml_validate($fileName, $filePath, $fileType, $fileSizeRaw);
     if ($validationError !== null) {
-        $errorQuery = ($action === 'update' && (int) ($_POST['id'] ?? 0) > 0)
-            ? 'edit=' . (int) $_POST['id'] : null;
-        $ml_redirect($validationError, 'error', $errorQuery);
+        $ml_redirect($validationError, 'error', $errQuery);
     }
-
-    $fileSizeKb = $fileSizeRaw === '' ? null : (int) $fileSizeRaw;
 
     $payload = [
         'file_name' => $fileName,
         'file_path' => $filePath,
         'file_type' => $fileType,
-        'mime_type' => $mimeType,
-        'file_size_kb' => $fileSizeKb,
-        'alt_text' => $altText,
-        'caption' => $caption,
+        'mime_type' => $mimeType !== '' ? mb_substr($mimeType, 0, 100, 'UTF-8') : null,
+        'file_size_kb' => $fileSizeRaw === '' ? null : (int) $fileSizeRaw,
+        'alt_text' => mb_substr($altText, 0, 255, 'UTF-8'),
+        'caption' => mb_substr($caption, 0, 500, 'UTF-8'),
         'is_active' => $isActive,
     ];
-
     if ($action === 'create') {
         $insert = $pdo->prepare(
             'INSERT INTO media_library (
@@ -281,8 +206,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $update->execute($payload + ['id' => $updateId]);
         $ml_redirect('Media file updated successfully.', 'success', 'edit=' . $updateId);
     }
-
-    $ml_redirect('Unknown action.', 'error');
 }
 
 $alerts = [];
@@ -296,31 +219,14 @@ if ($mediaSchemaError !== null) {
         'type' => 'error',
         'raw' => true,
         'message' => 'Media Library belum bisa dipakai sepenuhnya: skema database belum lengkap dan '
-            . 'perbaikan otomatis gagal dijalankan (' . cms_esc($mediaSchemaError) . '). '
-            . 'Jalankan migration manual: <a href="../migrate-media-library.php">Jalankan Migration Media Library</a>.',
+            . 'perbaikan otomatis gagal dijalankan (' . cms_esc($mediaSchemaError) . ').',
     ];
 }
 
-$editId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
+// ---- View mode: list (default) vs form (?new=1 / ?edit=ID) ----
+$editId  = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
 $editRow = null;
-
-try {
-    $listStmt = $pdo->query(
-        'SELECT m.id, m.file_name, m.file_path, m.file_type, m.mime_type,
-                m.file_size_kb, m.is_active, m.created_at
-         FROM media_library m
-         ORDER BY m.id DESC'
-    );
-    $mediaFiles = $listStmt->fetchAll();
-} catch (PDOException $e) {
-    $mediaFiles = [];
-    if ($mediaSchemaError === null) {
-        $alerts[] = [
-            'type' => 'error',
-            'message' => 'Gagal memuat daftar media: ' . $e->getMessage(),
-        ];
-    }
-}
+$isNew   = isset($_GET['new']) && $editId <= 0;
 
 if ($editId > 0) {
     try {
@@ -332,20 +238,96 @@ if ($editId > 0) {
         $editRow = $editStmt->fetch() ?: null;
     } catch (PDOException $e) {
         $editRow = null;
-        $alerts[] = ['type' => 'error', 'message' => 'Could not load record: ' . $e->getMessage()];
     }
     if ($editRow === null) {
         $alerts[] = ['type' => 'error', 'message' => 'Media file not found.'];
         $editId = 0;
     }
 }
+$formMode = $isNew || $editRow !== null;
 
-$formatDt = static function (?string $value): string {
-    if ($value === null || $value === '') {
-        return '—';
+// ---- List: server-side search + type/status filter + pagination ----
+$mediaFiles = [];
+$listTotalRows = 0;
+$listTotalPages = 1;
+$listPage = 1;
+$listSearch = '';
+$listType = '';
+$listStatus = '';
+$listPerPage = 24;
+
+if (!$formMode) {
+    $listSearch = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
+    if (mb_strlen($listSearch, 'UTF-8') > 100) {
+        $listSearch = mb_substr($listSearch, 0, 100, 'UTF-8');
     }
-    $ts = strtotime($value);
-    return $ts !== false ? date('d M Y, H:i', $ts) : $value;
+    $listType = strtolower(trim((string) ($_GET['type'] ?? '')));
+    if (!in_array($listType, ['image', 'document', 'video', 'other'], true)) {
+        $listType = '';
+    }
+    $listStatus = strtolower(trim((string) ($_GET['status'] ?? '')));
+    if (!in_array($listStatus, ['active', 'inactive'], true)) {
+        $listStatus = '';
+    }
+    $listPage = max(1, (int) ($_GET['page'] ?? 1));
+
+    $where = [];
+    $params = [];
+    if ($listSearch !== '') {
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $listSearch);
+        // Native prepares: each named placeholder may appear only once.
+        $where[] = '(m.file_name LIKE :q1 OR m.file_path LIKE :q2)';
+        $params['q1'] = '%' . $escaped . '%';
+        $params['q2'] = '%' . $escaped . '%';
+    }
+    if ($listType === 'other') {
+        $where[] = "(m.file_type IS NULL OR m.file_type NOT IN ('image','document','video'))";
+    } elseif ($listType !== '') {
+        $where[] = 'm.file_type = :ftype';
+        $params['ftype'] = $listType;
+    }
+    if ($listStatus !== '') {
+        $where[] = 'm.is_active = :fstatus';
+        $params['fstatus'] = $listStatus === 'active' ? 1 : 0;
+    }
+    $whereSql = $where !== [] ? ' WHERE ' . implode(' AND ', $where) : '';
+
+    try {
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM media_library m' . $whereSql);
+        $countStmt->execute($params);
+        $listTotalRows = (int) $countStmt->fetchColumn();
+        $listTotalPages = max(1, (int) ceil($listTotalRows / $listPerPage));
+        if ($listPage > $listTotalPages) {
+            $listPage = $listTotalPages;
+        }
+
+        $listStmt = $pdo->prepare(
+            'SELECT m.id, m.file_name, m.file_path, m.file_type, m.mime_type, m.file_size_kb, m.is_active
+             FROM media_library m' . $whereSql . '
+             ORDER BY m.id DESC LIMIT :limit OFFSET :offset'
+        );
+        foreach ($params as $k => $v) {
+            $listStmt->bindValue(':' . $k, $v);
+        }
+        $listStmt->bindValue(':limit', $listPerPage, PDO::PARAM_INT);
+        $listStmt->bindValue(':offset', ($listPage - 1) * $listPerPage, PDO::PARAM_INT);
+        $listStmt->execute();
+        $mediaFiles = $listStmt->fetchAll();
+    } catch (PDOException $e) {
+        $mediaFiles = [];
+        if ($mediaSchemaError === null) {
+            $alerts[] = ['type' => 'error', 'message' => 'Gagal memuat daftar media: ' . $e->getMessage()];
+        }
+    }
+}
+
+$hasFilter = $listSearch !== '' || $listType !== '' || $listStatus !== '';
+$paginateUrl = static function (int $p) use ($selfUrl, $listSearch, $listType, $listStatus): string {
+    $q = array_filter(
+        ['search' => $listSearch, 'type' => $listType, 'status' => $listStatus, 'page' => $p > 1 ? (string) $p : ''],
+        static fn ($v): bool => $v !== ''
+    );
+    return $selfUrl . ($q !== [] ? '?' . http_build_query($q) : '');
 };
 
 $val = static fn (array $row, string $key): string => (string) ($row[$key] ?? '');
@@ -357,147 +339,125 @@ require dirname(__DIR__) . '/includes/breadcrumb.php';
 require dirname(__DIR__) . '/includes/alerts.php';
 ?>
 <style>
-/* ---- path preview (live image from typed path) ---- */
 .cms-path-upload__preview{display:block;max-width:100%;max-height:100px;margin:6px 0 0;border-radius:8px;object-fit:contain;border:1px solid var(--line)}
 .cms-path-upload__preview[hidden]{display:none!important}
-/* ---- list row thumbnail ---- */
 .ml-thumb{flex-shrink:0;width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .ml-thumb--ph{display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--accent-soft);border:1px solid var(--line-subtle);border-radius:6px;width:38px;height:38px;flex-shrink:0}
-/* ---- file name truncation ---- */
 .ml-fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%}
-/* ---- type badges (base in admin.css; module-specific rules below) ---- */
-/* ---- filter controls bar ---- */
-.ml-controls{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px 10px;border-bottom:1px solid var(--line-subtle)}
+.ml-controls{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line-subtle);margin:0}
 .ml-ctrl-search{flex:1;min-width:120px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--input-bg);color:var(--text);font-size:13px;font-family:inherit}
 .ml-ctrl-select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--input-bg);color:var(--text);font-size:13px;font-family:inherit}
-/* ---- table layout (fixed to prevent overflow) ---- */
 .ml-table-wrap{overflow-x:auto}
-.ml-table{table-layout:fixed;width:100%;min-width:460px}
-.ml-col-file   {width:auto}
-.ml-col-type   {width:90px}
-.ml-col-size   {width:64px}
-.ml-col-usage  {width:100px}
-.ml-col-status {width:78px}
-.ml-col-actions{width:150px}
-/* ---- form helper text ---- */
+.ml-table{table-layout:fixed;width:100%;min-width:700px}
+.ml-col-file{width:34%}
+.ml-col-type{width:11%}
+.ml-col-size{width:12%}
+.ml-col-status{width:11%}
+.ml-col-actions{width:212px}
+.ml-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ml-actions{display:flex;flex-wrap:nowrap;gap:5px;justify-content:flex-end;align-items:center}
+.ml-actions .inline-form{display:inline-flex;margin:0}
 .ml-hint{font-size:11px;color:var(--muted);display:block;margin-top:4px;line-height:1.45}
 .ml-hint code{background:var(--accent-soft);padding:1px 5px;border-radius:3px;font-size:11px}
+.pg-pagination{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:12px 14px}
+.pg-page-btn{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface-soft);color:var(--text);font-size:13px;font-weight:500;text-decoration:none;font-family:inherit}
+.pg-page-btn:hover{background:var(--navlink-hover-bg);border-color:var(--navlink-active-border)}
+.pg-page-btn--active{background:var(--accent);border-color:var(--accent);color:var(--accent-text);cursor:default}
+.pg-page-btn--disabled{color:var(--muted);border-color:var(--line-subtle);cursor:default}
+.pg-page-ellipsis{padding:0 4px;color:var(--muted);font-size:13px}
 </style>
 <section class="admin-stack">
     <div class="toolbar">
         <div class="toolbar__left">
             <h2 class="section-title">Media library</h2>
-            <p class="section-lead">Central file store — enter file path as text (upload coming soon).</p>
+            <p class="section-lead">Central file store — upload file atau masukkan path file.</p>
         </div>
         <div class="toolbar__right">
-            <a class="admin-btn admin-btn--primary" id="ml-new-btn"
-               href="<?= cms_esc($selfUrl . '#media-form') ?>">Add Media Path</a>
+            <?php if ($formMode) : ?>
+                <a class="admin-btn admin-btn--secondary" href="<?= cms_esc($selfUrl) ?>">Back to List</a>
+            <?php else : ?>
+                <a class="admin-btn admin-btn--primary" href="<?= cms_esc($selfUrl) ?>?new=1">Add Media Path</a>
+            <?php endif; ?>
         </div>
     </div>
 
-    <div class="admin-grid admin-grid--2">
-        <div class="panel">
-            <div class="panel__head">
-                <h3 class="panel__title">Media files</h3>
-                <span class="panel__meta" id="ml-count"><?= count($mediaFiles) ?> file(s)</span>
-            </div>
+<?php if (!$formMode) : ?>
+    <div class="panel">
+        <div class="panel__head">
+            <h3 class="panel__title">Media files</h3>
+            <span class="panel__meta"><?= (int) $listTotalRows ?> file(s)</span>
+        </div>
 
-            <!-- Filter / search controls -->
-            <div class="ml-controls">
-                <input type="search" id="ml-search" class="ml-ctrl-search"
-                       placeholder="Search media…" autocomplete="off">
-                <select id="ml-filter-type" class="ml-ctrl-select">
-                    <option value="">All types</option>
-                    <option value="image">Image</option>
-                    <option value="document">Document</option>
-                    <option value="video">Video</option>
-                    <option value="other">Other</option>
-                </select>
-                <select id="ml-filter-status" class="ml-ctrl-select">
-                    <option value="">All statuses</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
-            </div>
+        <form method="get" action="<?= cms_esc($selfUrl) ?>" class="ml-controls">
+            <input type="search" name="search" class="ml-ctrl-search"
+                   placeholder="Search media…" autocomplete="off"
+                   value="<?= cms_esc($listSearch) ?>">
+            <select name="type" class="ml-ctrl-select">
+                <option value="">All types</option>
+                <?php foreach (['image' => 'Image', 'document' => 'Document', 'video' => 'Video', 'other' => 'Other'] as $k => $lbl) : ?>
+                    <option value="<?= $k ?>"<?= $listType === $k ? ' selected' : '' ?>><?= $lbl ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select name="status" class="ml-ctrl-select">
+                <option value="">All statuses</option>
+                <option value="active"<?= $listStatus === 'active' ? ' selected' : '' ?>>Active</option>
+                <option value="inactive"<?= $listStatus === 'inactive' ? ' selected' : '' ?>>Inactive</option>
+            </select>
+            <button type="submit" class="admin-btn admin-btn--secondary">Filter</button>
+        </form>
 
-            <div class="table-wrap ml-table-wrap">
-                <table class="admin-table ml-table">
-                    <colgroup>
-                        <col class="ml-col-file">
-                        <col class="ml-col-type">
-                        <col class="ml-col-size">
-                        <col class="ml-col-usage">
-                        <col class="ml-col-status">
-                        <col class="ml-col-actions">
-                    </colgroup>
-                    <thead>
+        <div class="table-wrap ml-table-wrap">
+            <table class="admin-table ml-table">
+                <colgroup>
+                    <col class="ml-col-file">
+                    <col class="ml-col-type">
+                    <col class="ml-col-size">
+                    <col class="ml-col-status">
+                    <col class="ml-col-actions">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($mediaFiles === []) : ?>
+                        <tr><td colspan="5" class="muted"><?= $hasFilter ? 'No files match your filters.' : 'No media files yet.' ?></td></tr>
+                    <?php endif; ?>
+                    <?php foreach ($mediaFiles as $row) : ?>
+                        <?php
+                        $rowId     = (int) $row['id'];
+                        $rowType   = strtolower($val($row, 'file_type'));
+                        $rowMime   = strtolower($val($row, 'mime_type'));
+                        $rowFPath  = $val($row, 'file_path');
+                        $isImg     = $rowType === 'image' || str_starts_with($rowMime, 'image/');
+                        $thumbSrc  = ($isImg && $rowFPath !== '') ? app_asset_preview_url($rowFPath) : '';
+                        $isActiveRow = (int) ($row['is_active'] ?? 0) === 1;
+                        $badgeKey  = in_array($rowType, ['image', 'document', 'video'], true) ? $rowType : 'other';
+                        ?>
                         <tr>
-                            <th>File</th>
-                            <th>Type</th>
-                            <th>Size</th>
-                            <th>Status</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="ml-tbody">
-                        <?php if ($mediaFiles === []) : ?>
-                            <tr><td colspan="5" class="muted">No media files yet.</td></tr>
-                        <?php endif; ?>
-                        <?php if ($mediaFiles !== []) : ?>
-                            <tr id="ml-no-results" hidden>
-                                <td colspan="5" class="muted">No files match your search.</td>
-                            </tr>
-                        <?php endif; ?>
-                        <?php foreach ($mediaFiles as $row) : ?>
-                            <?php
-                            $rowId     = (int) $row['id'];
-                            $rowType   = strtolower($val($row, 'file_type'));
-                            $rowMime   = strtolower($val($row, 'mime_type'));
-                            $rowFPath  = $val($row, 'file_path');
-                            $isImg     = $rowType === 'image' || str_starts_with($rowMime, 'image/');
-                            $thumbSrc  = ($isImg && $rowFPath !== '') ? app_asset_preview_url($rowFPath) : '';
-                            $rowStatus = (int) ($row['is_active'] ?? 0) === 1 ? 'active' : 'inactive';
-                            $badgeKey  = in_array($rowType, ['image', 'document', 'video'], true) ? $rowType : 'other';
-                            ?>
-                            <tr data-name="<?= cms_esc(strtolower($val($row, 'file_name'))) ?>"
-                                data-path="<?= cms_esc(strtolower($rowFPath)) ?>"
-                                data-type="<?= cms_esc($rowType) ?>"
-                                data-status="<?= $rowStatus ?>">
-                                <td>
-                                    <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
-                                        <?php if ($thumbSrc !== '') : ?>
-                                            <img class="ml-thumb"
-                                                 src="<?= cms_esc($thumbSrc) ?>"
-                                                 alt=""
-                                                 loading="lazy"
-                                                 onerror="this.hidden=true">
-                                        <?php else : ?>
-                                            <div class="ml-thumb ml-thumb--ph" aria-hidden="true">📄</div>
-                                        <?php endif; ?>
-                                        <span class="ml-fname"
-                                              title="<?= cms_esc($val($row, 'file_name')) ?>">
-                                            <?= cms_esc($val($row, 'file_name')) ?>
-                                        </span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="ml-type-badge ml-type-badge--<?= $badgeKey ?>">
-                                        <?= cms_esc($rowType !== '' ? $rowType : 'other') ?>
-                                    </span>
-                                </td>
-                                <td><?= $row['file_size_kb'] !== null && $row['file_size_kb'] !== '' ? cms_esc((string) $row['file_size_kb']) . ' KB' : '—' ?></td>
-                                <td>
-                                    <span class="pill pill--<?= $rowStatus === 'active' ? 'ok' : 'muted' ?>">
-                                        <?= $rowStatus === 'active' ? 'Active' : 'Inactive' ?>
-                                    </span>
-                                </td>
-                                <td class="table-actions">
-                                    <button type="button"
-                                            class="admin-btn admin-btn--sm admin-btn--ghost ml-copy-btn"
-                                            data-path="<?= cms_esc($rowFPath) ?>"
-                                            title="Copy path to clipboard">Copy</button>
-                                    <a class="admin-btn admin-btn--sm admin-btn--secondary"
-                                       href="<?= cms_esc($selfUrl) ?>?edit=<?= $rowId ?>">Edit</a>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden">
+                                    <?php if ($thumbSrc !== '') : ?>
+                                        <img class="ml-thumb" src="<?= cms_esc($thumbSrc) ?>" alt="" loading="lazy" onerror="this.hidden=true">
+                                    <?php else : ?>
+                                        <div class="ml-thumb ml-thumb--ph" aria-hidden="true">📄</div>
+                                    <?php endif; ?>
+                                    <span class="ml-fname" title="<?= cms_esc($val($row, 'file_name')) ?>"><?= cms_esc($val($row, 'file_name')) ?></span>
+                                </div>
+                            </td>
+                            <td><span class="ml-type-badge ml-type-badge--<?= $badgeKey ?>"><?= cms_esc($badgeKey) ?></span></td>
+                            <td><?= $row['file_size_kb'] !== null && $row['file_size_kb'] !== '' ? cms_esc((string) $row['file_size_kb']) . ' KB' : '—' ?></td>
+                            <td><span class="pill pill--<?= $isActiveRow ? 'ok' : 'muted' ?>"><?= $isActiveRow ? 'Active' : 'Inactive' ?></span></td>
+                            <td class="table-actions">
+                                <div class="ml-actions">
+                                    <button type="button" class="admin-btn admin-btn--sm admin-btn--ghost ml-copy-btn"
+                                            data-path="<?= cms_esc($rowFPath) ?>" title="Copy path to clipboard">Copy</button>
+                                    <a class="admin-btn admin-btn--sm admin-btn--secondary" href="<?= cms_esc($selfUrl) ?>?edit=<?= $rowId ?>">Edit</a>
                                     <form class="inline-form" method="post" action="<?= cms_esc($selfUrl) ?>"
                                           onsubmit="return confirm('Delete this media file?');">
                                         <?= cms_csrf_field() ?>
@@ -505,21 +465,53 @@ require dirname(__DIR__) . '/includes/alerts.php';
                                         <input type="hidden" name="id" value="<?= $rowId ?>">
                                         <button type="submit" class="admin-btn admin-btn--sm admin-btn--danger">Delete</button>
                                     </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
 
-        <div class="panel" id="media-form">
-            <div class="panel__head">
-                <h3 class="panel__title"><?= $editRow ? 'Edit media file' : 'New media file' ?></h3>
-                <?php if ($editRow) : ?>
-                    <a class="panel__link" href="<?= cms_esc($selfUrl) ?>">Cancel edit</a>
+        <?php if ($listTotalPages > 1) : ?>
+            <nav class="pg-pagination" aria-label="Media pagination">
+                <?php if ($listPage > 1) : ?>
+                    <a class="pg-page-btn" href="<?= cms_esc($paginateUrl($listPage - 1)) ?>">« Prev</a>
+                <?php else : ?>
+                    <span class="pg-page-btn pg-page-btn--disabled">« Prev</span>
                 <?php endif; ?>
-            </div>
+                <?php
+                $shown = [];
+                for ($i = 1; $i <= $listTotalPages; $i++) {
+                    if ($i === 1 || $i === $listTotalPages || abs($i - $listPage) <= 2) {
+                        $shown[] = $i;
+                    }
+                }
+                $prevShown = 0;
+                foreach ($shown as $i) :
+                    if ($prevShown !== 0 && $i - $prevShown > 1) : ?>
+                        <span class="pg-page-ellipsis">…</span>
+                    <?php endif;
+                    if ($i === $listPage) : ?>
+                        <span class="pg-page-btn pg-page-btn--active"><?= $i ?></span>
+                    <?php else : ?>
+                        <a class="pg-page-btn" href="<?= cms_esc($paginateUrl($i)) ?>"><?= $i ?></a>
+                    <?php endif;
+                    $prevShown = $i;
+                endforeach; ?>
+                <?php if ($listPage < $listTotalPages) : ?>
+                    <a class="pg-page-btn" href="<?= cms_esc($paginateUrl($listPage + 1)) ?>">Next »</a>
+                <?php else : ?>
+                    <span class="pg-page-btn pg-page-btn--disabled">Next »</span>
+                <?php endif; ?>
+            </nav>
+        <?php endif; ?>
+    </div>
+<?php else : ?>
+    <div class="panel" id="media-form">
+        <div class="panel__head">
+            <h3 class="panel__title"><?= $editRow ? 'Edit media file' : 'New media file' ?></h3>
+        </div>
             <form class="form-stack" method="post" action="<?= cms_esc($selfUrl) ?>"
                   enctype="multipart/form-data">
                 <?= cms_csrf_field() ?>
@@ -535,7 +527,7 @@ require dirname(__DIR__) . '/includes/alerts.php';
                            id="ml-upload-file"
                            accept=".jpg,.jpeg,.png,.webp,.gif,.pdf">
                     <small class="ml-hint">
-                        Allowed: JPG, PNG, WebP, GIF, PDF · Max 5 MB.
+                        Allowed: JPG, PNG, WebP, GIF, PDF · Max 5 MB (images), 10 MB (PDF).
                         Uploading auto-fills the fields below.
                         <?php if ($editRow && $val($editRow, 'file_path') !== '') : ?>
                             Leave empty to keep the current file.
@@ -553,7 +545,7 @@ require dirname(__DIR__) . '/includes/alerts.php';
                            placeholder="/uploads/media/YYYY/MM/file.webp"
                            autocomplete="off">
                     <small class="ml-hint">
-                        Path from the project root, starting with a slash.
+                        Path starting with /uploads/, or a full https:// URL.
                         Example: <code>/uploads/media/2026/05/photo.webp</code>
                     </small>
                 </label>
@@ -613,9 +605,10 @@ require dirname(__DIR__) . '/includes/alerts.php';
                 </label>
                 <button type="submit" class="admin-btn admin-btn--primary"><?= $editRow ? 'Save changes' : 'Create media file' ?></button>
             </form>
-        </div>
     </div>
+<?php endif; ?>
 </section>
+<?php if ($formMode) : ?>
 <script>
 (function () {
     // ---- Resolve a relative path to a browser URL for live preview ----
@@ -708,49 +701,10 @@ require dirname(__DIR__) . '/includes/alerts.php';
         });
     }
 })();
-
-// ---- Media table: search + type/status filter ----
-(function () {
-    var searchEl  = document.getElementById('ml-search');
-    var typeEl    = document.getElementById('ml-filter-type');
-    var statusEl  = document.getElementById('ml-filter-status');
-    var countEl   = document.getElementById('ml-count');
-    var noResults = document.getElementById('ml-no-results');
-    var tbody     = document.getElementById('ml-tbody');
-    if (!searchEl || !typeEl || !statusEl || !tbody) return;
-
-    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-name]'));
-
-    function applyFilters() {
-        var q      = searchEl.value.toLowerCase().trim();
-        var type   = typeEl.value.toLowerCase();
-        var status = statusEl.value.toLowerCase();
-        var visible = 0;
-
-        rows.forEach(function (tr) {
-            var name  = tr.getAttribute('data-name')   || '';
-            var path  = tr.getAttribute('data-path')   || '';
-            var rType = tr.getAttribute('data-type')   || '';
-            var rStat = tr.getAttribute('data-status') || '';
-            var show  = true;
-
-            if (q && name.indexOf(q) === -1 && path.indexOf(q) === -1) show = false;
-            if (type   && rType !== type)   show = false;
-            if (status && rStat !== status) show = false;
-
-            tr.hidden = !show;
-            if (show) visible++;
-        });
-
-        if (countEl)   { countEl.textContent   = visible + ' file(s)'; }
-        if (noResults) { noResults.hidden = visible > 0 || rows.length === 0; }
-    }
-
-    searchEl.addEventListener('input',   applyFilters);
-    typeEl.addEventListener('change',    applyFilters);
-    statusEl.addEventListener('change',  applyFilters);
-})();
-
+</script>
+<?php endif; ?>
+<?php if (!$formMode) : ?>
+<script>
 // ---- Copy Path button ----
 (function () {
     document.addEventListener('click', function (e) {
@@ -777,39 +731,7 @@ require dirname(__DIR__) . '/includes/alerts.php';
         }
     });
 })();
-
-// ---- "Add Media Path" button — always open a clean create form ----
-(function () {
-    var btn = document.getElementById('ml-new-btn');
-    if (!btn) return;
-
-    btn.addEventListener('click', function (e) {
-        var inEditMode = window.location.search.indexOf('edit=') !== -1;
-
-        if (inEditMode) {
-            // Navigate away from edit mode. The page will reload without ?edit=,
-            // PHP renders a blank create form, and the browser scrolls to #media-form.
-            // Let the default href handle it — no need to preventDefault.
-            return;
-        }
-
-        // Already in create mode: reset the form in-place, then scroll.
-        e.preventDefault();
-
-        var form = document.querySelector('#media-form form');
-        if (form) { form.reset(); }
-
-        // Clear path preview image
-        var prev = document.getElementById('ml-path-preview');
-        if (prev) { prev.hidden = true; prev.removeAttribute('src'); }
-
-        // Clear the file upload input (form.reset() covers it, but be explicit)
-        var upInput = document.getElementById('ml-upload-file');
-        if (upInput) { upInput.value = ''; }
-
-        document.getElementById('media-form').scrollIntoView({ behavior: 'smooth' });
-    });
-})();
 </script>
+<?php endif; ?>
 <?php
 require dirname(__DIR__) . '/includes/footer.php';

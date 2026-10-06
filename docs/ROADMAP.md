@@ -1,9 +1,32 @@
 # Progress Roadmap — WCM 2 - Version 2
 
-Status per 19 Agustus 2026 (pasca-rebrand ArenaSport77).
+Status per 19 Agustus 2026 — **arenasport77.com sudah LIVE di production.**
 
 Legenda: 🟢 Selesai · 🟠 Sebagian · ⚪ Belum mulai
 
+> **GO-LIVE 19 Agu 2026 — arenasport77.com sudah online.** Alur deploy:
+> commit & push ke GitHub (`github.com/jalijali-dev/wcm-arenasport77.com`,
+> branch `main`, auth via cached GitHub credential di Mac operator, bukan
+> SSH key — lihat catatan di bawah) → cPanel **Git™ Version Control** →
+> **Deploy HEAD Commit** (jalanin `.cpanel.yml`, rsync ke
+> `/home/arenasport77/public_html/`). Sempat ada 2 kendala teknis pas
+> setup awal: (1) repo cPanel pertama kali di-clone saat GitHub masih
+> kosong, jadi "Currently Checked-Out Branch" nyangkut ke branch kosong
+> (`""`) dan gagal deploy — solusinya repo di-remove dari cPanel lalu
+> di-clone ulang di path baru (`/home/arenasport77/repositories/arenasport77.com`)
+> setelah GitHub ada isinya; (2) `.git/index.lock` sempat nyangkut di
+> lokal pas commit pertama — dihapus manual, commit ulang berhasil (17
+> files changed). Operator sudah konfirmasi **https://arenasport77.com/
+> render dengan benar** (homepage, ticker, 3 kategori berisi artikel, nav,
+> footer, semua ArenaSport77 branding tampil benar). **Diketahui belum
+> beres:** gambar featured image 3 artikel contoh masih broken/kosong di
+> production — karena folder `uploads/` sengaja TIDAK ikut ke-deploy git
+> (by design, biar gak nimpa media asli di server), file SVG-nya belum
+> pernah di-copy manual ke server. Juga: config production
+> (`cms-admin/config/database.php`, `app.php`), admin account production,
+> DNS/SSL, dan verifikasi permalink production masih belum dikerjakan —
+> lihat Fase 5 di bawah untuk checklist lengkap sisa go-live.
+>
 > **REBRAND 19 Agu 2026 — baca ini duluan, timpa update-update di bawah
 > yang masih sebut "Biang Olahraga".** Dua pivot beruntun hari ini: (1)
 > 4 kategori final diganti dari Bulu Tangkis/Tinju/Moto GP/Tips ke
@@ -157,9 +180,35 @@ final untuk Biang Olahraga (yang sekarang masih placeholder text-based,
 bukan logo asli), favicon publik `assets/img/favicon.svg` juga masih
 placeholder huruf "B" sederhana yang sama.
 
-## Fase 5 — Pra-Launch ⚪ Belum mulai
+## Fase 5 — Pra-Launch & Go-Live 🟠 Sebagian (update 19 Agu 2026)
 
-Belum relevan — nunggu Fase 1-4 selesai dan domain ditentukan dulu.
+**Sudah:** kode ter-deploy ke production lewat cPanel Git Version Control
+— `https://arenasport77.com/` sudah bisa diakses publik dan tampilan
+sudah dikonfirmasi operator render benar (homepage, ticker, kategori,
+nav, footer). `.cpanel.yml` `DEPLOYPATH` sudah diisi path docroot asli
+(`/home/arenasport77/public_html/`).
+
+**Belum (urutan prioritas berikutnya):**
+- Gambar featured image 3 artikel contoh masih broken di production —
+  `uploads/media/2026/08/*.svg` perlu di-copy manual ke server (File
+  Manager/Terminal cPanel), karena `uploads/` sengaja gitignored & di-
+  exclude dari `.cpanel.yml`.
+- `cms-admin/config/database.php` & `cms-admin/config/app.php` production
+  belum dibuat di server (harus manual langsung di server, database
+  MySQL production harus baru & genuinely kosong — JANGAN pakai "Copy
+  Database").
+- Trigger schema migration + kategori auto-seed di production (buka
+  `cms-admin/` lalu `/` sekali).
+- Bikin admin account production pertama (script sekali-pakai pola
+  `_create-first-admin.php`, hapus setelah dipakai).
+- DNS pointing & SSL (AutoSSL/Let's Encrypt) untuk arenasport77.com.
+- Verifikasi permalink `/artikel/{slug}` & `/kategori/{slug}` jalan di
+  production (mod_rewrite).
+- Hardening (`display_errors` off di production, permission `uploads/`,
+  pastikan gak ada file `_*.php` nyangkut di server).
+- SEO dasar: sitemap, robots.txt, Google Search Console.
+
+Detail lengkap tiap langkah ada di `docs/PROMPT-GO-LIVE-ARENASPORT77.md`.
 
 ## Fase 6 — AI Automation Layer ⚪ Belum mulai
 

@@ -9,6 +9,19 @@ $pageTitle = $pageTitle ?? 'Dashboard';
 // is loaded defensively here rather than assuming a specific page already
 // pulled it in.
 require_once dirname(__DIR__) . '/includes/growth-agent-service.php';
+// Menu index for the navbar search box: built from the already role-filtered
+// $sidebarSections (includes/sidebar.php is always required before this file),
+// so admins never see menus they can't open. Filtering is purely client-side.
+$cmsSearchMenu = [];
+foreach (($sidebarSections ?? []) as $section) {
+    if (($section['type'] ?? '') === 'link') {
+        $cmsSearchMenu[] = ['label' => $section['label'], 'group' => '', 'href' => $section['href']];
+    } else {
+        foreach ($section['items'] ?? [] as $item) {
+            $cmsSearchMenu[] = ['label' => $item['label'], 'group' => $section['label'], 'href' => $item['href']];
+        }
+    }
+}
 $cmsGrowthNotif = (isset($pdo) && $pdo instanceof PDO)
     ? cms_growth_agent_notifications($pdo, 8)
     : ['count' => 0, 'action_needed_count' => 0, 'new_article_count' => 0, 'items' => []];
@@ -22,14 +35,13 @@ $cmsGrowthNotif = (isset($pdo) && $pdo instanceof PDO)
             <h1 class="admin-navbar__title"><?= cms_esc($pageTitle) ?></h1>
         </div>
         <div class="admin-navbar__center">
-            <label class="admin-search" data-pages-prefix="<?= cms_esc(cms_pages_prefix()) ?>">
+            <label class="admin-search" data-menu="<?= cms_esc(json_encode($cmsSearchMenu, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>">
                 <span class="visually-hidden">Search</span>
                 <input type="search"
                        id="admin-search-input"
                        class="admin-search__input"
-                       placeholder="Search pages, articles, messages…"
-                       autocomplete="off"
-                       data-search-action="<?= cms_esc(cms_action_href('search.php')) ?>">
+                       placeholder="Cari menu…"
+                       autocomplete="off">
                 <div class="admin-search__results" id="admin-search-results" hidden></div>
             </label>
         </div>

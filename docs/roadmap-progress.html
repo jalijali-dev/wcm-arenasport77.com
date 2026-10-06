@@ -15,13 +15,17 @@
     <div>
       <div style="font-size: 20px; font-weight: 700; color: #18181b;">Progress Roadmap — WCM 2 Version 2</div>
       <div style="font-size: 13px; color: #3f3f46; margin-top: 4px; font-weight: 600;">WEBSITE : ArenaSport77 (arenasport77.com)</div>
-      <div style="font-size: 13px; color: #71717a; margin-top: 2px;">Status per 19 Agustus 2026 (pasca-rebrand)</div>
+      <div style="font-size: 13px; color: #71717a; margin-top: 2px;">Status per 19 Agustus 2026 — <strong style="color:#16a34a;">LIVE di production</strong></div>
     </div>
     <div style="display:flex; gap:14px; font-size:12px; color: #71717a; align-items:center;">
       <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#16a34a;display:inline-block;"></span>Selesai</span>
       <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#f59e0b;display:inline-block;"></span>Sebagian</span>
       <span style="display:flex; align-items:center; gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:#d4d4d8;display:inline-block;"></span>Belum mulai</span>
     </div>
+  </div>
+
+  <div style="margin-bottom:12px; border:1px solid #86efac; background:#f0fdf4; border-radius:10px; padding:12px 16px; font-size:12.5px; color:#14532d; line-height:1.5;">
+    <strong>GO-LIVE 19 Agustus 2026:</strong> <strong>https://arenasport77.com/</strong> sudah online — deploy lewat cPanel Git Version Control (GitHub → Deploy HEAD Commit), operator sudah konfirmasi homepage render benar (ticker, kategori, nav, footer, branding ArenaSport77). Belum beres: gambar 3 artikel contoh masih broken di production (folder <code>uploads/</code> sengaja gak ikut deploy git, perlu di-copy manual), config database/app production, admin account production, DNS/SSL, dan verifikasi permalink — lihat Fase 5 di bawah.
   </div>
 
   <div style="margin-bottom:18px; border:1px solid #93c5fd; background:#eff6ff; border-radius:10px; padding:12px 16px; font-size:12.5px; color:#1e3a8a; line-height:1.5;">
@@ -103,14 +107,14 @@
 
     <!-- Fase 5 -->
     <div style="position:relative; margin-bottom:14px;">
-      <div style="position:absolute; left:-34px; top:16px; width:20px; height:20px; border-radius:50%; background:#d4d4d8; border:3px solid #fff; box-shadow:0 0 0 1px #d4d4d8;"></div>
-      <div style="border:1px solid #e4e4e7; border-radius:10px; padding:14px 16px; background: #fff;">
+      <div style="position:absolute; left:-34px; top:16px; width:20px; height:20px; border-radius:50%; background:#f59e0b; border:3px solid #fff; box-shadow:0 0 0 1px #f59e0b;"></div>
+      <div style="border:1px solid #f59e0b; border-radius:10px; padding:14px 16px; background: #fff;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-          <div style="font-weight:700; font-size:14.5px; color:#18181b;">Fase 5 — Pra-Launch</div>
-          <span style="font-size:11px; font-weight:700; color:#71717a; white-space:nowrap;">BELUM MULAI</span>
+          <div style="font-weight:700; font-size:14.5px; color:#18181b;">Fase 5 — Pra-Launch &amp; Go-Live</div>
+          <span style="font-size:11px; font-weight:700; color:#f59e0b; white-space:nowrap;">SEBAGIAN</span>
         </div>
         <div style="font-size:12.5px; color:#52525b; margin-top:4px; line-height:1.5;">
-          Belum relevan — menunggu Fase 1, 2, 4 selesai dan permalink final dikonfirmasi dulu. Robots.txt, sitemap, GSC juga menunggu tahap ini.
+          <strong>Sudah:</strong> kode ter-deploy, <strong>arenasport77.com sudah live &amp; render benar</strong>. <strong>Belum:</strong> gambar artikel broken di production (folder <code>uploads/</code> belum di-copy manual), config <code>database.php</code>/<code>app.php</code> production, migrasi schema + admin account production, DNS/SSL, verifikasi permalink production, hardening, robots.txt/sitemap/GSC. Checklist lengkap di <code>docs/PROMPT-GO-LIVE-ARENASPORT77.md</code>.
         </div>
       </div>
     </div>

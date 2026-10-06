@@ -85,7 +85,7 @@
    ============================================================ */
 (function () {
   var THEME_KEY    = "wpm-theme";
-  var DEFAULT      = "deep-purple";
+  var DEFAULT      = "light-modern";
   var VALID_THEMES = ["dark-modern", "light-modern", "deep-purple"];
   var html         = document.documentElement;
 
@@ -136,10 +136,9 @@
 }());
 
 /* ============================================================
-   Global search (navbar)
-   Debounced AJAX call to actions/search.php, renders a grouped
-   dropdown of results (Pages & Articles, Contact Messages) under
-   the search box.
+   Sidebar menu search (navbar)
+   Pure client-side filter over the role-filtered sidebar menu list
+   embedded by includes/navbar.php (data-menu) — no server request.
    ============================================================ */
 (function () {
   var input = document.getElementById("admin-search-input");
@@ -147,10 +146,8 @@
   if (!input || !resultsBox) { return; }
 
   var wrapper = input.closest(".admin-search");
-  var pagesPrefix = (wrapper && wrapper.dataset.pagesPrefix) || "";
-  var searchAction = input.dataset.searchAction;
-  var debounceTimer = null;
-  var activeController = null;
+  var menu = [];
+  try { menu = JSON.parse((wrapper && wrapper.dataset.menu) || "[]"); } catch (e) {}
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, function (c) {
@@ -163,84 +160,43 @@
     resultsBox.innerHTML = "";
   }
 
-  function renderResults(items, query) {
-    if (!items.length) {
+  function render(query) {
+    var q = query.toLowerCase();
+    var matches = menu.filter(function (m) {
+      return (m.label + " " + m.group).toLowerCase().indexOf(q) !== -1;
+    });
+    if (!matches.length) {
       resultsBox.innerHTML =
-        '<div class="admin-search__empty">No results for “' + escapeHtml(query) + '”.</div>';
-      resultsBox.removeAttribute("hidden");
-      return;
+        '<div class="admin-search__empty">Menu “' + escapeHtml(query) + '” tidak ditemukan.</div>';
+    } else {
+      resultsBox.innerHTML = matches.map(function (m) {
+        return '<a class="admin-search__item" href="' + escapeHtml(m.href) + '">' +
+          '<span class="admin-search__item-title">' + escapeHtml(m.label) + "</span>" +
+          '<span class="admin-search__item-subtitle">' + escapeHtml(m.group) + "</span></a>";
+      }).join("");
     }
-
-    var groups = {};
-    var order = [];
-    items.forEach(function (item) {
-      if (!groups[item.type]) {
-        groups[item.type] = [];
-        order.push(item.type);
-      }
-      groups[item.type].push(item);
-    });
-
-    var html = "";
-    order.forEach(function (type) {
-      html += '<div class="admin-search__group-label">' + escapeHtml(type) + "</div>";
-      groups[type].forEach(function (item) {
-        var href = pagesPrefix + item.url;
-        html +=
-          '<a class="admin-search__item" href="' + escapeHtml(href) + '">' +
-          '<span class="admin-search__item-title">' + escapeHtml(item.title || "(untitled)") + "</span>" +
-          '<span class="admin-search__item-subtitle">' + escapeHtml(item.subtitle || "") + "</span>" +
-          "</a>";
-      });
-    });
-
-    resultsBox.innerHTML = html;
     resultsBox.removeAttribute("hidden");
-  }
-
-  function runSearch(query) {
-    if (!searchAction) { return; }
-    if (activeController) { activeController.abort(); }
-    activeController = new AbortController();
-
-    fetch(searchAction + "?q=" + encodeURIComponent(query), {
-      credentials: "same-origin",
-      signal: activeController.signal
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data || !data.ok) { return; }
-        renderResults(data.results || [], query);
-      })
-      .catch(function () { /* aborted or network hiccup: ignore */ });
   }
 
   input.addEventListener("input", function () {
     var query = input.value.trim();
-    window.clearTimeout(debounceTimer);
-    if (query.length < 2) {
-      hideResults();
-      return;
-    }
-    debounceTimer = window.setTimeout(function () { runSearch(query); }, 250);
+    if (!query) { hideResults(); return; }
+    render(query);
   });
 
   input.addEventListener("focus", function () {
-    if (input.value.trim().length >= 2 && resultsBox.innerHTML) {
-      resultsBox.removeAttribute("hidden");
-    }
+    if (input.value.trim()) { render(input.value.trim()); }
   });
 
   document.addEventListener("click", function (e) {
-    if (!wrapper.contains(e.target)) {
-      hideResults();
-    }
+    if (!wrapper.contains(e.target)) { hideResults(); }
   });
 
   input.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") {
-      hideResults();
-      input.blur();
+    if (e.key === "Escape") { hideResults(); input.blur(); }
+    if (e.key === "Enter") {
+      var first = resultsBox.querySelector("a.admin-search__item");
+      if (first) { e.preventDefault(); window.location.href = first.getAttribute("href"); }
     }
   });
 }());

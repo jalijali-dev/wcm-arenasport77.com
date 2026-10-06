@@ -330,3 +330,11 @@ terakhir di dokumen ini (16 Agu):
 7. Setelah poin 1, 4, 5 jelas: audit ulang modul cms-admin sesuai konteks
    multi-cabang olahraga, lalu mulai tulis & input artikel asli (bukan
    copy-paste) untuk 4 kategori final.
+
+## Update 6 Okt 2026 — Media Library: halaman dirapikan + upload drag & drop di picker
+
+- `cms-admin/pages/media-library.php` ditulis ulang: list view (`media-library.php`, filter/search/pagination server-side, 24/halaman) dan form view terpisah (`?new=1` / `?edit=ID`). Tabel `media_library` dibuat otomatis via `cms_ensure_table`.
+- Logika validasi + simpan upload dipindah ke `cms_handle_media_upload()` di `cms-admin/includes/functions.php` (ekstensi, MIME via finfo, limit 5 MB gambar / 10 MB PDF, nama acak, guard `index.php`). Dipakai bersama oleh `media-library.php` dan endpoint baru.
+- Endpoint baru `cms-admin/actions/media-upload.php` (AJAX, 1 file per request, CSRF lewat header `X-CSRF-Token`, balas JSON `{ok,id,file_name,file_path,url,mime_type,width,height}`; hanya gambar).
+- Modal "Select from Media Library" (`includes/tinymce-media-picker.php`, dipakai pages.php, ads.php, TinyMCE) sekarang punya drop-zone: klik atau drag-drop, multi-file, item baru langsung masuk grid dan bisa dipilih tanpa reload.
+- Pencarian navbar admin sekarang filter menu sidebar (client-side); tema default admin = `light-modern`.

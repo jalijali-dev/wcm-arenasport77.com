@@ -226,7 +226,7 @@ function cms_current_theme(): string
 {
     cms_session_start();
     $theme = (string) ($_SESSION['wpm_theme'] ?? '');
-    return in_array($theme, cms_valid_themes(), true) ? $theme : 'deep-purple';
+    return in_array($theme, cms_valid_themes(), true) ? $theme : 'light-modern';
 }
 
 function cms_settings_href(): string
@@ -349,4 +349,101 @@ function cms_sanitize_ad_html(string $html): string
     $html = preg_replace('#(href|src)(\s*=\s*)(["\'])\s*(javascript|data):[^"\']*\3#is', '$1$2$3#$3', $html) ?? $html;
 
     return trim($html);
+}
+
+/**
+ * Shared media upload handler — validates and stores ONE uploaded file under
+ * uploads/media/YYYY/MM/ (used by pages/media-library.php and
+ * actions/media-upload.php, so the rules cannot drift apart).
+ *
+ * Rules: extension whitelist, real MIME via finfo (client type is never
+ * trusted), per-type size cap (image 5 MB, PDF 10 MB), randomised file name,
+ * index.php 403 guard in every folder level.
+ *
+ * @return array{file_path:string,file_name:string,mime_type:string,file_size_kb:int,file_type:string}
+ * @throws RuntimeException with a user-facing message on any failure
+ */
+function cms_handle_media_upload(string $tmpName, string $origName, int $fileBytes): array
+{
+    if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+        throw new RuntimeException('Invalid upload.');
+    }
+    if ($fileBytes <= 0) {
+        throw new RuntimeException('Uploaded file is empty.');
+    }
+
+    // Step 1: preliminary extension check (fast, before finfo)
+    $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
+    $clientExt   = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+    if ($clientExt === '' || !in_array($clientExt, $allowedExts, true)) {
+        throw new RuntimeException('Disallowed file extension.');
+    }
+
+    // Step 2: MIME detection from the actual bytes; canonical extension
+    // comes from this map, never from the client filename.
+    $mimeExtMap = [
+        'image/jpeg'      => 'jpg',
+        'image/png'       => 'png',
+        'image/webp'      => 'webp',
+        'image/gif'       => 'gif',
+        'application/pdf' => 'pdf',
+    ];
+    $finfo        = new finfo(FILEINFO_MIME_TYPE);
+    $detectedMime = (string) ($finfo->file($tmpName) ?: '');
+    if ($detectedMime === '' || !array_key_exists($detectedMime, $mimeExtMap)) {
+        throw new RuntimeException('Disallowed file type (' . $detectedMime . ').');
+    }
+
+    // Step 3: per-type size limit
+    $isPdf    = $detectedMime === 'application/pdf';
+    $maxBytes = $isPdf ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
+    if ($fileBytes > $maxBytes) {
+        throw new RuntimeException('File exceeds the ' . ($isPdf ? '10 MB' : '5 MB') . ' limit for this file type.');
+    }
+    $ext = $mimeExtMap[$detectedMime];
+
+    // Step 4: directories + guard files
+    $projectRoot = CMS_PROJECT_ROOT;
+    $relBase     = 'uploads/media';
+    $relYear     = $relBase . '/' . date('Y');
+    $relDir      = $relYear . '/' . date('m');
+    $diskDir     = $projectRoot . '/' . $relDir;
+    if (!is_dir($diskDir) && !mkdir($diskDir, 0755, true) && !is_dir($diskDir)) {
+        throw new RuntimeException('Upload directory could not be created.');
+    }
+    $guardContent = "<?php\ndeclare(strict_types=1);\n\nhttp_response_code(403);\nexit('Forbidden');\n";
+    foreach ([$relBase, $relYear, $relDir] as $guardLevel) {
+        $guardFile = $projectRoot . '/' . $guardLevel . '/index.php';
+        if (!file_exists($guardFile)) {
+            file_put_contents($guardFile, $guardContent);
+            @chmod($guardFile, 0644);
+        }
+    }
+
+    // Step 5: safe filename — lowercase slug + 16 hex chars, collision-checked
+    $base = trim(
+        (string) (preg_replace('/[^a-z0-9_-]+/', '-', strtolower(pathinfo($origName, PATHINFO_FILENAME))) ?? ''),
+        '-'
+    );
+    if ($base === '') {
+        $base = 'upload';
+    }
+    do {
+        $safeFilename = $base . '-' . bin2hex(random_bytes(8)) . '.' . $ext;
+        $targetPath   = $diskDir . '/' . $safeFilename;
+    } while (file_exists($targetPath));
+
+    // Step 6: move into place
+    if (!move_uploaded_file($tmpName, $targetPath)) {
+        throw new RuntimeException('Could not save the uploaded file.');
+    }
+    @chmod($targetPath, 0644);
+
+    return [
+        'file_path'    => '/' . $relDir . '/' . $safeFilename,
+        'file_name'    => $safeFilename,
+        'mime_type'    => $detectedMime,
+        'file_size_kb' => (int) ceil($fileBytes / 1024),
+        'file_type'    => $isPdf ? 'document' : 'image',
+    ];
 }
